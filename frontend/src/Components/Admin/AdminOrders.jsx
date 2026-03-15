@@ -27,7 +27,7 @@ export default function AdminOrders() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => { fetchOrders(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (orderId, status) => {
     setUpdatingId(orderId);

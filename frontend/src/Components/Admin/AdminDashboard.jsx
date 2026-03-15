@@ -34,7 +34,7 @@ export default function AdminDashboard({ onLogout }) {
     }
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { fetchProducts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toast helper ────────────────────────────────────────────
   const showToast = (msg) => {

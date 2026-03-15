@@ -51,7 +51,7 @@ export default function Dashboard() {
     const onKey = (e) => { if (e.key === "Escape") closeSearch(); };
     if (searchOpen) window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [searchOpen]);
+  }, [searchOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const closeSearch = () => { setSearchOpen(false); setSearchQuery(""); };
 
