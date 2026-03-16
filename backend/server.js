@@ -13,11 +13,6 @@ const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
-if (!MONGO_URI || MONGO_URI.includes("<username>")) {
-  console.error("\n❌  Please set your MONGO_URI in backend/.env\n");
-  process.exit(1);
-}
-
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
   origin: process.env.FRONTEND_URL || "*",
@@ -76,7 +71,7 @@ const adminConfigSchema = new mongoose.Schema({
 });
 const AdminConfig = mongoose.model("AdminConfig", adminConfigSchema);
 
-// ── GridFS bucket (set after DB connects) ───────────────────
+// ── GridFS bucket ─────────────────────────────────────────────
 let gfsBucket;
 
 // ── Multer: keep file in memory, we push it to GridFS ───────
@@ -90,6 +85,37 @@ const upload = multer({
     cb(null, valid);
   },
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
+
+// ── MongoDB connection cache (serverless-safe) ────────────────
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  if (!MONGO_URI) throw new Error("MONGO_URI environment variable is not set");
+
+  await mongoose.connect(MONGO_URI);
+  isConnected = true;
+  gfsBucket = new GridFSBucket(mongoose.connection.db, { bucketName: "uploads" });
+
+  // Seed admin password if not already in DB
+  const existing = await AdminConfig.findOne();
+  if (!existing) {
+    await AdminConfig.create({ password: "adminNaazAtif3321" });
+    console.log("🔑  Admin password seeded to database");
+  }
+  console.log("✅  Connected to MongoDB Atlas");
+}
+
+// ── DB connection middleware ──────────────────────────────────
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("DB connection error:", err.message);
+    res.status(500).json({ error: "Database connection failed" });
+  }
 });
 
 // ── Helper: save buffer → GridFS, returns the new file _id ──
@@ -333,26 +359,18 @@ app.delete("/api/orders/:id", async (req, res) => {
   }
 });
 
-// ── Connect to MongoDB Atlas then start server ───────────────
-mongoose
-  .connect(MONGO_URI)
-  .then(async () => {
-    console.log("✅  Connected to MongoDB Atlas");
-    gfsBucket = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
+// ── Local dev: start server directly ─────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () =>
+        console.log(`🚀  Backend running at http://localhost:${PORT}\n`)
+      );
+    })
+    .catch((err) => {
+      console.error("❌  Startup failed:", err.message);
     });
-    // Seed admin password if not already in DB
-    const existing = await AdminConfig.findOne();
-    if (!existing) {
-      await AdminConfig.create({ password: "adminNaazAtif3321" });
-      console.log("🔑  Admin password seeded to database");
-    }
-    app.listen(PORT, () =>
-      console.log(`🚀  Backend running at http://localhost:${PORT}\n`)
-    );
-  })
-  .catch((err) => {
-    console.error("❌  MongoDB connection failed:", err.message);
-    process.exit(1);
-  });
+}
 
+// ── Vercel serverless export ──────────────────────────────────
+module.exports = app;
