@@ -4,7 +4,7 @@
    vertical thumbnail gallery (desktop), magnifier lens, floating header
    ============================================================ */
 
-/* ── Z-index layer map (never use raw numbers elsewhere) ── */
+/* ── Z-index layer map — safe in :root, no conflict with Dashboard ── */
 :root {
   --z-base:    1;
   --z-sticky:  10;
@@ -13,8 +13,14 @@
   --z-toast:   200;
 }
 
-/* ── SOFT LUXURY — Emerald Night — ProductDetail tokens ── */
-:root {
+/* ── SOFT LUXURY — Emerald Night — ProductDetail tokens ──────────────
+   Scoped to .pd-page (and .pd-loading-screen for the loading state) so
+   these DON'T overwrite Dashboard.css :root tokens in Webpack's bundle.
+   In production all CSS is one file — :root rules collide; class scope
+   fixes it because only one root class is in the DOM at a time.
+   ─────────────────────────────────────────────────────────────────── */
+.pd-page,
+.pd-loading-screen {
   --maroon:      #6EE7C4;   /* emerald-light for price / highlights */
   --maroon-dark: #2DD4A0;
   --maroon-glow: rgba(45,212,160,0.18);

@@ -1,7 +1,9 @@
 /* ============================================================
    ZAREEN'S — Cart Page
    ============================================================ */
-:root {
+/* Scoped to .cart-page — avoids clobbering Dashboard :root tokens in
+   Webpack's bundled CSS (all :root blocks share one cascade in production). */
+.cart-page {
   --maroon: #8b1a1a;
   --maroon-dark: #6b1414;
   --gold: #c9a96e;
