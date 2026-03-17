@@ -533,7 +533,74 @@
   color: var(--gray-400);
   font-size: 13px;
 }
-.admin-image-hint { font-size: 11px; }
+.admin-image-hint { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+
+/* ── Multi-image grid ── */
+.admin-img-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 8px;
+}
+.admin-img-thumb {
+  position: relative; width: 80px; height: 80px;
+  border-radius: 8px; overflow: hidden;
+  border: 2px solid var(--gray-200);
+  flex-shrink: 0;
+}
+.admin-img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.admin-img-thumb-new { border-color: #c9a96e; }
+.admin-img-remove {
+  position: absolute; top: 2px; right: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #fff;
+  border: none; font-size: 14px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.admin-img-remove:hover { background: #c0392b; }
+.admin-img-add-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border: 2px dashed var(--gray-200);
+  border-radius: 8px; background: var(--gray-100);
+  font-size: 13px; font-weight: 600; color: var(--gray-400);
+  cursor: pointer; transition: all 0.2s; margin-top: 4px;
+}
+.admin-img-add-btn:hover { border-color: var(--maroon); color: var(--maroon); background: #fff5f5; }
+
+/* ── Product card additions ── */
+.admin-img-count {
+  position: absolute; bottom: 6px; right: 6px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 10px; letter-spacing: 0.5px;
+}
+.admin-product-delivery {
+  font-size: 11px; color: var(--gray-400); margin-top: 2px;
+}
+
+/* ── Piece description rows ── */
+.admin-piece-row {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin-bottom: 12px;
+  padding: 12px; background: var(--gray-100);
+  border-radius: 8px; border: 1px solid var(--gray-200);
+}
+.admin-piece-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.admin-piece-remove {
+  flex-shrink: 0; width: 28px; height: 28px;
+  border-radius: 50%; background: #fce4ec; color: #c62828;
+  border: none; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 2px;
+}
+.admin-piece-remove:hover { background: #c62828; color: #fff; }
+.admin-piece-add {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 7px 14px; border: 1.5px dashed var(--gray-200);
+  border-radius: 8px; background: transparent;
+  font-size: 12px; font-weight: 700; color: var(--maroon);
+  cursor: pointer; transition: all 0.2s; margin-top: 4px;
+}
+.admin-piece-add:hover { background: #fff5f5; border-color: var(--maroon); }
 
 /* ============================================================
    TOAST

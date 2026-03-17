@@ -5,7 +5,14 @@ import AdminOrders from "./AdminOrders";
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const BADGES = ["NEW IN", "EID COLLECTION", "READY TO WEAR", "FABRICS", "SALE"];
 
-const emptyForm = { name: "", price: "", badge: "NEW IN", description: "" };
+const emptyForm = {
+  name: "",
+  price: "",
+  badge: "NEW IN",
+  description: "",
+  deliveryCharges: "200",
+  pieces: [], // [{pieceName, description}]
+};
 
 export default function AdminDashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState("products");
@@ -14,8 +21,13 @@ export default function AdminDashboard({ onLogout }) {
   const [modal, setModal] = useState(null); // null | 'add' | 'edit'
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
+
+  // Multiple image state
+  const [existingImages, setExistingImages] = useState([]); // [{id, url}] from DB
+  const [removedImageIds, setRemovedImageIds] = useState(new Set());
+  const [newImageFiles, setNewImageFiles] = useState([]); // File[]
+  const [newImagePreviews, setNewImagePreviews] = useState([]); // local URLs
+
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [toast, setToast] = useState("");
@@ -42,33 +54,88 @@ export default function AdminDashboard({ onLogout }) {
     setTimeout(() => setToast(""), 3000);
   };
 
-  // ── Image picker ────────────────────────────────────────────
+  // ── Add new image files ─────────────────────────────────────
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    const previews = files.map((f) => URL.createObjectURL(f));
+    setNewImageFiles((prev) => [...prev, ...files]);
+    setNewImagePreviews((prev) => [...prev, ...previews]);
+    // reset input so same file can be re-selected
+    fileInputRef.current.value = "";
+  };
+
+  // ── Remove a new (not yet uploaded) image ───────────────────
+  const removeNewImage = (idx) => {
+    setNewImageFiles((prev) => prev.filter((_, i) => i !== idx));
+    setNewImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ── Remove an existing (already in DB) image ────────────────
+  const removeExistingImage = (id) => {
+    setRemovedImageIds((prev) => new Set([...prev, id]));
+  };
+
+  // ── Reset image state ───────────────────────────────────────
+  const resetImages = () => {
+    setExistingImages([]);
+    setRemovedImageIds(new Set());
+    setNewImageFiles([]);
+    setNewImagePreviews([]);
+  };
+
+  // ── Piece helpers ───────────────────────────────────────────
+  const addPiece = () => {
+    setForm((f) => ({ ...f, pieces: [...f.pieces, { pieceName: "", description: "" }] }));
+  };
+  const updatePiece = (idx, field, value) => {
+    setForm((f) => {
+      const pieces = [...f.pieces];
+      pieces[idx] = { ...pieces[idx], [field]: value };
+      return { ...f, pieces };
+    });
+  };
+  const removePiece = (idx) => {
+    setForm((f) => ({ ...f, pieces: f.pieces.filter((_, i) => i !== idx) }));
   };
 
   // ── Open Add modal ──────────────────────────────────────────
   const openAdd = () => {
     setForm(emptyForm);
-    setImageFile(null);
-    setImagePreview("");
+    resetImages();
     setEditId(null);
     setModal("add");
   };
 
   // ── Open Edit modal ─────────────────────────────────────────
   const openEdit = (product) => {
+    // Build existing images from product.imgs or img
+    const imgs = product.imgs && product.imgs.length > 0
+      ? product.imgs
+      : (product.img ? [product.img] : []);
+    const imgIds = product.imageIds || [];
+
+    // Map ids to {id, url}
+    const existingImgs = imgIds.map((id, i) => ({
+      id: String(id),
+      url: imgs[i] || `${API}/api/images/${id}`,
+    }));
+
+    setExistingImages(existingImgs);
+    setRemovedImageIds(new Set());
+    setNewImageFiles([]);
+    setNewImagePreviews([]);
+
     setForm({
       name: product.name,
       price: product.price,
       badge: product.badge,
       description: product.description || "",
+      deliveryCharges: String(product.deliveryCharges || 200),
+      pieces: product.pieces && product.pieces.length > 0
+        ? product.pieces.map((p) => ({ pieceName: p.pieceName || "", description: p.description || "" }))
+        : [],
     });
-    setImageFile(null);
-    setImagePreview(product.img);
     setEditId(product._id);
     setModal("edit");
   };
@@ -77,12 +144,11 @@ export default function AdminDashboard({ onLogout }) {
   const closeModal = () => {
     setModal(null);
     setForm(emptyForm);
-    setImageFile(null);
-    setImagePreview("");
+    resetImages();
     setEditId(null);
   };
 
-  // ── Submit form (add or edit) ────────────────────────────────
+  // ── Submit form ─────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -92,7 +158,21 @@ export default function AdminDashboard({ onLogout }) {
       fd.append("price", form.price);
       fd.append("badge", form.badge);
       fd.append("description", form.description);
-      if (imageFile) fd.append("image", imageFile);
+      fd.append("deliveryCharges", form.deliveryCharges || "200");
+      fd.append("pieces", JSON.stringify(form.pieces));
+
+      // New image files
+      for (const file of newImageFiles) {
+        fd.append("images", file);
+      }
+
+      // Which existing images to keep (for edit)
+      if (modal === "edit") {
+        const keepIds = existingImages
+          .filter((img) => !removedImageIds.has(img.id))
+          .map((img) => img.id);
+        fd.append("keepImageIds", JSON.stringify(keepIds));
+      }
 
       const url =
         modal === "edit"
@@ -122,9 +202,7 @@ export default function AdminDashboard({ onLogout }) {
   // ── Delete product ───────────────────────────────────────────
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`${API}/api/products/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`${API}/api/products/${id}`, { method: "DELETE" });
       if (res.ok) {
         showToast("Product deleted");
         setProducts((prev) => prev.filter((p) => p._id !== id));
@@ -141,9 +219,12 @@ export default function AdminDashboard({ onLogout }) {
     }
   };
 
+  // Visible existing images (not removed)
+  const visibleExisting = existingImages.filter((img) => !removedImageIds.has(img.id));
+
   return (
     <div className="admin-page">
-      {/* ── Sidebar / Top bar ── */}
+      {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
         <div className="admin-sidebar-logo">
           <span className="admin-brand-main">ZAREEN'S</span>
@@ -159,138 +240,142 @@ export default function AdminDashboard({ onLogout }) {
       {/* ── Bottom Nav (Mobile) ── */}
       <nav className="admin-bottom-nav">
         <div className={`admin-bottom-nav-item ${activeSection === "products" ? "active" : ""}`} onClick={() => setActiveSection("products")}>
-          <span className="nav-icon">📦</span>
-          Products
+          <span className="nav-icon">📦</span>Products
         </div>
         <div className={`admin-bottom-nav-item ${activeSection === "orders" ? "active" : ""}`} onClick={() => setActiveSection("orders")}>
-          <span className="nav-icon">🛍️</span>
-          Orders
+          <span className="nav-icon">🛍️</span>Orders
         </div>
         <div className="admin-bottom-nav-item" onClick={onLogout}>
-          <span className="nav-icon">🚪</span>
-          Logout
+          <span className="nav-icon">🚪</span>Logout
         </div>
       </nav>
 
       {/* ── Main ── */}
       <main className="admin-main">
-        {activeSection === "orders" ? <AdminOrders /> : (<>
-        {/* Header */}
-        <div className="admin-header">
-          <div>
-            <h1 className="admin-title">Products</h1>
-            <p className="admin-subtitle">{products.length} items in catalog</p>
-          </div>
-          <button className="admin-btn-primary" onClick={openAdd}>
-            + Add Product
-          </button>
-        </div>
-
-        {/* Product Grid */}
-        {loading ? (
-          <div className="admin-loading">Loading products...</div>
-        ) : products.length === 0 ? (
-          <div className="admin-empty">
-            <p>No products yet.</p>
-            <button className="admin-btn-primary" onClick={openAdd}>
-              Add your first product
-            </button>
-          </div>
-        ) : (
-          <div className="admin-products-grid">
-            {products.map((p) => (
-              <div key={p._id} className="admin-product-card">
-                <div className="admin-product-img-wrapper">
-                  <img
-                    src={p.img || "https://via.placeholder.com/300x350?text=No+Image"}
-                    alt={p.name}
-                    className="admin-product-img"
-                  />
-                  <span className="admin-product-badge">{p.badge}</span>
-                </div>
-                <div className="admin-product-info">
-                  <p className="admin-product-name">{p.name}</p>
-                  <p className="admin-product-price">{p.price}</p>
-                  {p.description && (
-                    <p className="admin-product-desc">{p.description}</p>
-                  )}
-                </div>
-                <div className="admin-product-actions">
-                  <button
-                    className="admin-btn-edit"
-                    onClick={() => openEdit(p)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="admin-btn-delete"
-                    onClick={() => setDeleteConfirm(p._id)}
-                  >
-                    Delete
-                  </button>
-                </div>
+        {activeSection === "orders" ? <AdminOrders /> : (
+          <>
+            {/* Header */}
+            <div className="admin-header">
+              <div>
+                <h1 className="admin-title">Products</h1>
+                <p className="admin-subtitle">{products.length} items in catalog</p>
               </div>
-            ))}
-          </div>
+              <button className="admin-btn-primary" onClick={openAdd}>+ Add Product</button>
+            </div>
+
+            {/* Product Grid */}
+            {loading ? (
+              <div className="admin-loading">Loading products...</div>
+            ) : products.length === 0 ? (
+              <div className="admin-empty">
+                <p>No products yet.</p>
+                <button className="admin-btn-primary" onClick={openAdd}>Add your first product</button>
+              </div>
+            ) : (
+              <div className="admin-products-grid">
+                {products.map((p) => {
+                  const imgs = p.imgs && p.imgs.length > 0 ? p.imgs : (p.img ? [p.img] : []);
+                  return (
+                    <div key={p._id} className="admin-product-card">
+                      {/* Image thumbnails */}
+                      <div className="admin-product-img-wrapper">
+                        <img
+                          src={imgs[0] || "https://via.placeholder.com/300x350?text=No+Image"}
+                          alt={p.name}
+                          className="admin-product-img"
+                        />
+                        <span className="admin-product-badge">{p.badge}</span>
+                        {imgs.length > 1 && (
+                          <span className="admin-img-count">+{imgs.length - 1} more</span>
+                        )}
+                      </div>
+                      <div className="admin-product-info">
+                        <p className="admin-product-name">{p.name}</p>
+                        <p className="admin-product-price">{p.price}</p>
+                        <p className="admin-product-delivery">Delivery: PKR {p.deliveryCharges || 200}</p>
+                        {p.pieces && p.pieces.length > 0 && (
+                          <p className="admin-product-desc">{p.pieces.length} piece description{p.pieces.length !== 1 ? "s" : ""}</p>
+                        )}
+                      </div>
+                      <div className="admin-product-actions">
+                        <button className="admin-btn-edit" onClick={() => openEdit(p)}>Edit</button>
+                        <button className="admin-btn-delete" onClick={() => setDeleteConfirm(p._id)}>Delete</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
-        </>)}
       </main>
 
       {/* ── Add / Edit Modal ── */}
       {modal && (
         <div className="admin-modal-overlay" onClick={closeModal}>
-          <div
-            className="admin-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal-header">
               <h2>{modal === "edit" ? "Edit Product" : "Add New Product"}</h2>
-              <button className="admin-modal-close" onClick={closeModal}>
-                ×
-              </button>
+              <button className="admin-modal-close" onClick={closeModal}>×</button>
             </div>
 
             <form onSubmit={handleSubmit} className="admin-modal-form">
-              {/* Image upload */}
+
+              {/* ── Multi-image upload ── */}
               <div className="admin-form-group">
-                <label className="admin-label">Product Image</label>
-                <div
-                  className="admin-image-upload"
+                <label className="admin-label">Product Images</label>
+
+                {/* Existing images */}
+                {visibleExisting.length > 0 && (
+                  <div className="admin-img-grid">
+                    {visibleExisting.map((img) => (
+                      <div key={img.id} className="admin-img-thumb">
+                        <img src={img.url} alt="existing" />
+                        <button
+                          type="button"
+                          className="admin-img-remove"
+                          onClick={() => removeExistingImage(img.id)}
+                          title="Remove"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* New image previews */}
+                {newImagePreviews.length > 0 && (
+                  <div className="admin-img-grid" style={{ marginTop: visibleExisting.length > 0 ? 8 : 0 }}>
+                    {newImagePreviews.map((url, idx) => (
+                      <div key={idx} className="admin-img-thumb admin-img-thumb-new">
+                        <img src={url} alt="new" />
+                        <button
+                          type="button"
+                          className="admin-img-remove"
+                          onClick={() => removeNewImage(idx)}
+                          title="Remove"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload button */}
+                <button
+                  type="button"
+                  className="admin-img-add-btn"
                   onClick={() => fileInputRef.current.click()}
                 >
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="preview"
-                      className="admin-image-preview"
-                    />
-                  ) : (
-                    <div className="admin-image-placeholder">
-                      <span>Click to upload image</span>
-                      <span className="admin-image-hint">JPG, PNG, WEBP — max 10MB</span>
-                    </div>
-                  )}
-                </div>
+                  + Add Images
+                </button>
+                <p className="admin-image-hint">JPG, PNG, WEBP — max 10MB each. Add multiple images.</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   style={{ display: "none" }}
                   onChange={handleImageChange}
                 />
-                {imagePreview && (
-                  <button
-                    type="button"
-                    className="admin-btn-text"
-                    onClick={() => {
-                      setImageFile(null);
-                      setImagePreview(modal === "edit" ? imagePreview : "");
-                      fileInputRef.current.value = "";
-                    }}
-                  >
-                    Change image
-                  </button>
-                )}
               </div>
 
               {/* Name */}
@@ -317,6 +402,19 @@ export default function AdminDashboard({ onLogout }) {
                 />
               </div>
 
+              {/* Delivery Charges */}
+              <div className="admin-form-group">
+                <label className="admin-label">Delivery Charges (PKR)</label>
+                <input
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  value={form.deliveryCharges}
+                  onChange={(e) => setForm({ ...form, deliveryCharges: e.target.value })}
+                  placeholder="e.g. 200"
+                />
+              </div>
+
               {/* Badge */}
               <div className="admin-form-group">
                 <label className="admin-label">Badge</label>
@@ -325,46 +423,66 @@ export default function AdminDashboard({ onLogout }) {
                   value={form.badge}
                   onChange={(e) => setForm({ ...form, badge: e.target.value })}
                 >
-                  {BADGES.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
+                  {BADGES.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
 
-              {/* Description */}
+              {/* General Description */}
               <div className="admin-form-group">
-                <label className="admin-label">Description</label>
+                <label className="admin-label">General Description</label>
                 <textarea
                   className="admin-input admin-textarea"
                   value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  placeholder="Write a short product description..."
-                  rows={3}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Short overview of the product..."
+                  rows={2}
                 />
               </div>
 
-              <div className="admin-modal-footer">
-                <button
-                  type="button"
-                  className="admin-btn-secondary"
-                  onClick={closeModal}
-                >
-                  Cancel
+              {/* Piece-by-piece descriptions */}
+              <div className="admin-form-group">
+                <label className="admin-label">
+                  Piece Descriptions
+                  <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 8, color: "#888" }}>
+                    (e.g. Shirt, Trouser, Dupatta)
+                  </span>
+                </label>
+
+                {form.pieces.map((piece, idx) => (
+                  <div key={idx} className="admin-piece-row">
+                    <div className="admin-piece-fields">
+                      <input
+                        className="admin-input"
+                        placeholder="Piece name (e.g. Shirt)"
+                        value={piece.pieceName}
+                        onChange={(e) => updatePiece(idx, "pieceName", e.target.value)}
+                        style={{ marginBottom: 6 }}
+                      />
+                      <textarea
+                        className="admin-input admin-textarea"
+                        placeholder="Description for this piece..."
+                        rows={2}
+                        value={piece.description}
+                        onChange={(e) => updatePiece(idx, "description", e.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-piece-remove"
+                      onClick={() => removePiece(idx)}
+                    >×</button>
+                  </div>
+                ))}
+
+                <button type="button" className="admin-piece-add" onClick={addPiece}>
+                  + Add Piece
                 </button>
-                <button
-                  type="submit"
-                  className="admin-btn-primary"
-                  disabled={saving}
-                >
-                  {saving
-                    ? "Saving..."
-                    : modal === "edit"
-                    ? "Save Changes"
-                    : "Add Product"}
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={closeModal}>Cancel</button>
+                <button type="submit" className="admin-btn-primary" disabled={saving}>
+                  {saving ? "Saving..." : modal === "edit" ? "Save Changes" : "Add Product"}
                 </button>
               </div>
             </form>
@@ -377,28 +495,15 @@ export default function AdminDashboard({ onLogout }) {
         <div className="admin-modal-overlay">
           <div className="admin-modal admin-modal-sm">
             <h3 className="admin-confirm-title">Delete Product?</h3>
-            <p className="admin-confirm-text">
-              This action cannot be undone. The product will be permanently removed.
-            </p>
+            <p className="admin-confirm-text">This action cannot be undone. The product will be permanently removed.</p>
             <div className="admin-modal-footer">
-              <button
-                className="admin-btn-secondary"
-                onClick={() => setDeleteConfirm(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="admin-btn-delete-confirm"
-                onClick={() => handleDelete(deleteConfirm)}
-              >
-                Yes, Delete
-              </button>
+              <button className="admin-btn-secondary" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button className="admin-btn-delete-confirm" onClick={() => handleDelete(deleteConfirm)}>Yes, Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Toast ── */}
       {toast && <div className="admin-toast">{toast}</div>}
     </div>
   );

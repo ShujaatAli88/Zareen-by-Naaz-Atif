@@ -28,20 +28,51 @@ const productSchema = new mongoose.Schema(
     price: { type: String, required: true },
     badge: { type: String, default: "NEW" },
     description: { type: String, default: "" },
+    // Legacy single image (kept for backward compat)
     imageId: { type: mongoose.Schema.Types.ObjectId, default: null },
     isExternal: { type: Boolean, default: false },
     externalImg: { type: String, default: "" },
+    // Multiple images
+    imageIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+    // Piece-by-piece descriptions e.g. [{pieceName:"Shirt", description:"..."}]
+    pieces: {
+      type: [{ pieceName: { type: String }, description: { type: String } }],
+      default: [],
+    },
+    // Delivery charges (admin sets per product)
+    deliveryCharges: { type: Number, default: 200 },
     likedBy: { type: [String], default: [] },
   },
   { timestamps: true }
 );
 
-// Compute img URL for the frontend
+// Compute primary img URL (first of imageIds, fallback to legacy imageId)
 productSchema.virtual("img").get(function () {
   if (this.isExternal) return this.externalImg;
+  if (this.imageIds && this.imageIds.length > 0)
+    return `${BASE_URL}/api/images/${this.imageIds[0]}`;
   if (this.imageId) return `${BASE_URL}/api/images/${this.imageId}`;
   return "";
 });
+
+// Compute array of all image URLs
+productSchema.virtual("imgs").get(function () {
+  const urls = [];
+  if (this.imageIds && this.imageIds.length > 0) {
+    for (const id of this.imageIds) {
+      urls.push(`${BASE_URL}/api/images/${id}`);
+    }
+  }
+  // Fallback to legacy single imageId
+  if (urls.length === 0 && this.imageId) {
+    urls.push(`${BASE_URL}/api/images/${this.imageId}`);
+  }
+  if (urls.length === 0 && this.isExternal && this.externalImg) {
+    urls.push(this.externalImg);
+  }
+  return urls;
+});
+
 productSchema.set("toJSON", { virtuals: true });
 
 const Product = mongoose.model("Product", productSchema);
@@ -56,7 +87,8 @@ const orderSchema = new mongoose.Schema(
     productId:    { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
     productName:  { type: String, required: true },
     productPrice: { type: String, required: true },
-    size:         { type: String, enum: ["S", "M", "L"], required: true },
+    size:         { type: String, enum: ["XS", "S", "M", "L", "XL"], required: true },
+    quantity:     { type: Number, default: 1, min: 1 },
     deliveryCharges: { type: Number, default: 200 },
     totalAmount:  { type: String, required: true },
     status:       { type: String, enum: ["pending", "processing", "delivered", "cancelled"], default: "pending" },
@@ -182,17 +214,25 @@ app.get("/api/products", async (_req, res) => {
   }
 });
 
-// ── POST create product ──────────────────────────────────────
-app.post("/api/products", upload.single("image"), async (req, res) => {
+// ── POST create product (accepts multiple images) ────────────
+app.post("/api/products", upload.any(), async (req, res) => {
   try {
-    const { name, price, badge, description } = req.body;
+    const { name, price, badge, description, deliveryCharges, pieces } = req.body;
     if (!name || !price)
       return res.status(400).json({ error: "Name and price are required" });
 
-    let imageId = null;
-    if (req.file) {
-      const filename = `${uuidv4()}${path.extname(req.file.originalname)}`;
-      imageId = await saveToGridFS(req.file.buffer, filename, req.file.mimetype);
+    let parsedPieces = [];
+    if (pieces) {
+      try { parsedPieces = JSON.parse(pieces); } catch { parsedPieces = []; }
+    }
+
+    const imageIds = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const filename = `${uuidv4()}${path.extname(file.originalname)}`;
+        const id = await saveToGridFS(file.buffer, filename, file.mimetype);
+        imageIds.push(id);
+      }
     }
 
     const product = await Product.create({
@@ -200,7 +240,9 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       price,
       badge: badge || "NEW",
       description: description || "",
-      imageId,
+      deliveryCharges: parseInt(deliveryCharges) || 200,
+      pieces: parsedPieces,
+      imageIds,
       isExternal: false,
     });
 
@@ -211,26 +253,54 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 });
 
 // ── PUT update product ───────────────────────────────────────
-app.put("/api/products/:id", upload.single("image"), async (req, res) => {
+app.put("/api/products/:id", upload.any(), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    const { name, price, badge, description } = req.body;
+    const { name, price, badge, description, deliveryCharges, pieces, keepImageIds } = req.body;
+
+    // Which existing imageIds to keep (admin may have removed some)
+    let keepIds = [];
+    if (keepImageIds) {
+      try { keepIds = JSON.parse(keepImageIds); } catch { keepIds = product.imageIds.map(id => String(id)); }
+    } else {
+      keepIds = product.imageIds.map(id => String(id));
+    }
+
+    // Delete removed images from GridFS
+    const removedIds = product.imageIds.filter(id => !keepIds.includes(String(id)));
+    for (const id of removedIds) {
+      await deleteGridFSFile(id);
+    }
+
+    // Keep remaining
+    const remainingIds = product.imageIds.filter(id => keepIds.includes(String(id)));
+
+    // Upload new images
+    const newImageIds = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const filename = `${uuidv4()}${path.extname(file.originalname)}`;
+        const id = await saveToGridFS(file.buffer, filename, file.mimetype);
+        newImageIds.push(id);
+      }
+    }
+
     product.name = name || product.name;
     product.price = price || product.price;
     product.badge = badge || product.badge;
     product.description = description !== undefined ? description : product.description;
+    product.deliveryCharges = deliveryCharges !== undefined ? (parseInt(deliveryCharges) || 200) : product.deliveryCharges;
+    if (pieces !== undefined) {
+      try { product.pieces = JSON.parse(pieces); } catch { /* keep existing */ }
+    }
+    product.imageIds = [...remainingIds, ...newImageIds];
 
-    if (req.file) {
-      // Remove old GridFS image
-      if (!product.isExternal && product.imageId) {
-        await deleteGridFSFile(product.imageId);
-      }
-      const filename = `${uuidv4()}${path.extname(req.file.originalname)}`;
-      product.imageId = await saveToGridFS(req.file.buffer, filename, req.file.mimetype);
-      product.isExternal = false;
-      product.externalImg = "";
+    // Clean up legacy imageId if we now have imageIds
+    if (product.imageIds.length > 0 && product.imageId && !product.isExternal) {
+      await deleteGridFSFile(product.imageId);
+      product.imageId = null;
     }
 
     await product.save();
@@ -246,6 +316,11 @@ app.delete("/api/products/:id", async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
 
+    // Delete all imageIds from GridFS
+    for (const id of product.imageIds) {
+      await deleteGridFSFile(id);
+    }
+    // Also delete legacy imageId if any
     if (!product.isExternal && product.imageId) {
       await deleteGridFSFile(product.imageId);
     }
@@ -303,20 +378,27 @@ app.get("/api/products/:id", async (req, res) => {
 // ── POST place order ─────────────────────────────────────────
 app.post("/api/orders", async (req, res) => {
   try {
-    const { customerName, phone, email, deliveryAddress, productId, productName, productPrice, size } = req.body;
+    const {
+      customerName, phone, email, deliveryAddress,
+      productId, productName, productPrice, size,
+      quantity, deliveryCharges,
+    } = req.body;
+
     if (!customerName || !phone || !email || !deliveryAddress || !productName || !productPrice || !size)
       return res.status(400).json({ error: "All fields are required" });
 
-    // Parse numeric price to calculate total
+    const qty = Math.max(1, parseInt(quantity) || 1);
+    const dc = parseInt(deliveryCharges) || 200;
     const numericPrice = parseInt(productPrice.replace(/[^0-9]/g, ""), 10) || 0;
-    const total = numericPrice + 200;
+    const total = (numericPrice * qty) + dc;
     const totalAmount = `PKR ${total.toLocaleString()}`;
 
     const order = await Order.create({
       customerName, phone, email, deliveryAddress,
       productId: productId || null,
       productName, productPrice, size,
-      deliveryCharges: 200,
+      quantity: qty,
+      deliveryCharges: dc,
       totalAmount,
     });
 
