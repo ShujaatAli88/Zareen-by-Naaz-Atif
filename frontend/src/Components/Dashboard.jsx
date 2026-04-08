@@ -321,7 +321,7 @@ export default function Dashboard() {
         <div className="logo">
           <motion.img
             src="/nazzAtif_logo.jpeg"
-            alt="ZAREEN'S by NaazAtif"
+            alt="ZAREEN by NaazAtif"
             className="logo-img"
             animate={{ height: scrolled ? "34px" : "50px" }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
@@ -547,7 +547,7 @@ export default function Dashboard() {
             >
               <div className="about-modal-header">
                 <div className="about-modal-brand">
-                  <span className="about-modal-brand-main">ZAREEN'S</span>
+                  <span className="about-modal-brand-main">ZAREEN</span>
                   <span className="about-modal-brand-sub">by NaazAtif</span>
                 </div>
                 <button className="about-modal-close" onClick={() => setAboutOpen(false)}>
@@ -603,7 +603,7 @@ export default function Dashboard() {
       {/* ── Hero ── */}
       <section className="hero">
         <img
-          src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1400&q=80"
+          src="/background_image.jpeg"
           alt="hero"
           className="hero-img"
         />
@@ -766,7 +766,7 @@ export default function Dashboard() {
       <footer className="footer">
         <div className="footer-main">
           <div className="footer-brand-col">
-            <span className="footer-brand-name">ZAREEN'S</span>
+            <span className="footer-brand-name">ZAREEN</span>
             <span className="footer-brand-sub">by NaazAtif · Est. 2025</span>
             <p className="footer-brand-desc">
               Crafted with love, designed for the modern Pakistani woman. Elegance in every thread.
