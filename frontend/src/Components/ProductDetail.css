@@ -467,6 +467,30 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 @media (min-width: 900px) { .pd-price { font-size: 32px; } }
 
+.pd-oos-banner {
+  display: flex; align-items: center; gap: 8px;
+  background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px;
+  color: #dc2626; font-size: 13px; font-weight: 600;
+  padding: 10px 16px; margin-bottom: 16px;
+}
+.pd-price-original {
+  font-family: var(--font-mono);
+  font-size: 15px; font-weight: 400;
+  color: var(--gray-400); text-decoration: line-through;
+}
+.pd-off-badge {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  background: #dc2626; color: #fff;
+  padding: 3px 10px; border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.35);
+}
+.pd-badge--sale {
+  background: #dc2626 !important;
+}
+.pd-price-block {
+  flex-direction: column; align-items: flex-start;
+}
 .pd-price-tag {
   font-family: var(--font-mono);
   font-size: 9px; color: var(--gray-400);

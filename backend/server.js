@@ -41,6 +41,8 @@ const productSchema = new mongoose.Schema(
     },
     // Delivery charges (admin sets per product)
     deliveryCharges: { type: Number, default: 200 },
+    discount: { type: Number, default: 0, min: 0, max: 100 },
+    inStock: { type: Boolean, default: true },
     likedBy: { type: [String], default: [] },
   },
   { timestamps: true }
@@ -217,7 +219,7 @@ app.get("/api/products", async (_req, res) => {
 // ── POST create product (accepts multiple images) ────────────
 app.post("/api/products", upload.any(), async (req, res) => {
   try {
-    const { name, price, badge, description, deliveryCharges, pieces } = req.body;
+    const { name, price, badge, description, deliveryCharges, pieces, discount, inStock } = req.body;
     if (!name || !price)
       return res.status(400).json({ error: "Name and price are required" });
 
@@ -241,6 +243,8 @@ app.post("/api/products", upload.any(), async (req, res) => {
       badge: badge || "NEW",
       description: description || "",
       deliveryCharges: parseInt(deliveryCharges) || 200,
+      discount: Math.min(100, Math.max(0, parseFloat(discount) || 0)),
+      inStock: inStock === "false" ? false : true,
       pieces: parsedPieces,
       imageIds,
       isExternal: false,
@@ -258,7 +262,7 @@ app.put("/api/products/:id", upload.any(), async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    const { name, price, badge, description, deliveryCharges, pieces, keepImageIds } = req.body;
+    const { name, price, badge, description, deliveryCharges, pieces, keepImageIds, discount, inStock } = req.body;
 
     // Which existing imageIds to keep (admin may have removed some)
     let keepIds = [];
@@ -287,24 +291,32 @@ app.put("/api/products/:id", upload.any(), async (req, res) => {
       }
     }
 
-    product.name = name || product.name;
-    product.price = price || product.price;
-    product.badge = badge || product.badge;
-    product.description = description !== undefined ? description : product.description;
-    product.deliveryCharges = deliveryCharges !== undefined ? (parseInt(deliveryCharges) || 200) : product.deliveryCharges;
+    // Build explicit $set — bypasses Mongoose dirty-tracking entirely
+    const $set = {};
+    if (name)                    $set.name             = name;
+    if (price)                   $set.price            = price;
+    if (badge)                   $set.badge            = badge;
+    if (description !== undefined) $set.description    = description;
+    if (deliveryCharges !== undefined) $set.deliveryCharges = parseInt(deliveryCharges) || 200;
+    if (discount !== undefined)  $set.discount         = Math.min(100, Math.max(0, parseFloat(discount) || 0));
+    if (inStock !== undefined)   $set.inStock          = (inStock !== "false");
     if (pieces !== undefined) {
-      try { product.pieces = JSON.parse(pieces); } catch { /* keep existing */ }
+      try { $set.pieces = JSON.parse(pieces); } catch { /* keep existing */ }
     }
-    product.imageIds = [...remainingIds, ...newImageIds];
+    $set.imageIds = [...remainingIds, ...newImageIds];
 
     // Clean up legacy imageId if we now have imageIds
-    if (product.imageIds.length > 0 && product.imageId && !product.isExternal) {
+    if ($set.imageIds.length > 0 && product.imageId && !product.isExternal) {
       await deleteGridFSFile(product.imageId);
-      product.imageId = null;
+      $set.imageId = null;
     }
 
-    await product.save();
-    res.json(product);
+    const updated = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $set },
+      { new: true }
+    );
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -327,6 +339,24 @@ app.delete("/api/products/:id", async (req, res) => {
 
     await product.deleteOne();
     res.json({ message: "Product deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH stock status ───────────────────────────────────────
+app.patch("/api/products/:id/stock", async (req, res) => {
+  try {
+    const { inStock } = req.body;
+    if (typeof inStock !== "boolean")
+      return res.status(400).json({ error: "inStock must be a boolean" });
+    const updated = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $set: { inStock } },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: "Product not found" });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

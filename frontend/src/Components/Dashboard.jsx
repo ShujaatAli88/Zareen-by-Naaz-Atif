@@ -7,6 +7,17 @@ import "./Dashboard.css";
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const NAV_LINKS = ["NEW IN", "EID COLLECTION", "READY TO WEAR", "FABRICS", "SALE"];
 
+function parsePrice(priceStr) {
+  if (!priceStr) return 0;
+  const n = parseFloat(String(priceStr).replace(/[^0-9.]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function effectivePrice(p) {
+  const base = parsePrice(p.price);
+  return p.discount > 0 ? Math.round(base * (1 - p.discount / 100)) : base;
+}
+
 const FOOTER_COLS = [
   { title: "SHOP", links: ["New In", "Eid Collection", "Ready to Wear", "Fabrics", "Sale"] },
   { title: "HELP", links: ["Size Guide", "Track Order", "Returns", "FAQs", "Contact Us"] },
@@ -78,11 +89,14 @@ function ProductGrid({ products, onCardClick }) {
       {products.map((p) => {
         const imgs = p.imgs && p.imgs.length > 0 ? p.imgs : (p.img ? [p.img] : []);
         const imgSrc = imgs[0] || "https://via.placeholder.com/400x530?text=No+Image";
+        const origPrice = parsePrice(p.price);
+        const salePrice = p.discount > 0 ? Math.round(origPrice * (1 - p.discount / 100)) : null;
+        const outOfStock = p.inStock === false;
 
         return (
           <motion.div
             key={p._id}
-            className="product-card"
+            className={`product-card${outOfStock ? " product-card--oos" : ""}`}
             variants={cardVariants}
             onClick={() => onCardClick(p._id)}
             whileTap={{ scale: 0.97 }}
@@ -90,7 +104,11 @@ function ProductGrid({ products, onCardClick }) {
             <div className="product-img-wrapper">
               <img src={imgSrc} alt={p.name} className="product-img" loading="lazy" />
 
-              {p.badge && <span className="product-badge">{p.badge}</span>}
+              {(p.discount > 0) ? (
+                <span className="product-discount-badge">{p.discount}% OFF</span>
+              ) : (
+                p.badge && <span className="product-badge">{p.badge}</span>
+              )}
 
               <button
                 className="product-wishlist-btn"
@@ -107,13 +125,26 @@ function ProductGrid({ products, onCardClick }) {
                 <span className="product-quick-add-label">Quick View</span>
                 <span className="product-quick-add-icon">→</span>
               </div>
+
+              {outOfStock && (
+                <div className="product-oos-overlay">
+                  <span className="product-oos-label">OUT OF STOCK</span>
+                </div>
+              )}
             </div>
 
             <div className="product-info">
               {p.badge && <p className="product-category">{p.badge}</p>}
               <p className="product-name">{p.name}</p>
               <div className="product-price-row">
-                <p className="product-price">{p.price}</p>
+                {salePrice ? (
+                  <>
+                    <p className="product-price product-price-sale">PKR {salePrice.toLocaleString()}</p>
+                    <p className="product-price product-price-original">PKR {origPrice.toLocaleString()}</p>
+                  </>
+                ) : (
+                  <p className="product-price">PKR {origPrice > 0 ? origPrice.toLocaleString() : p.price}</p>
+                )}
               </div>
             </div>
           </motion.div>
@@ -227,6 +258,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [activeFilter, setActiveFilter] = useState(null);
+  const [priceSort, setPriceSort] = useState(null); // null | 'asc' | 'desc'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -277,6 +309,13 @@ export default function Dashboard() {
   const displayProducts = (() => {
     let list = products;
     if (activeFilter) list = list.filter((p) => p.badge === activeFilter);
+    if (priceSort) {
+      list = [...list].sort((a, b) =>
+        priceSort === "asc"
+          ? effectivePrice(a) - effectivePrice(b)
+          : effectivePrice(b) - effectivePrice(a)
+      );
+    }
     return list;
   })();
 
@@ -334,7 +373,7 @@ export default function Dashboard() {
             <li
               key={i}
               className={`nav-item${i === 4 ? " nav-sale" : ""}${activeFilter === link ? " nav-active" : ""}`}
-              onClick={() => { setActiveFilter(activeFilter === link ? null : link); setSearchQuery(""); }}
+              onClick={() => { setActiveFilter(activeFilter === link ? null : link); setSearchQuery(""); setPriceSort(null); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}
             >
               <span className="nav-item-text">{link}</span>
               {activeFilter === link && (
@@ -509,7 +548,7 @@ export default function Dashboard() {
                 {NAV_LINKS.map((link, i) => (
                   <li key={i}
                     className={`mobile-nav-item ${i === 4 ? "nav-sale" : ""} ${activeFilter === link ? "mobile-nav-active" : ""}`}
-                    onClick={() => { setActiveFilter(activeFilter === link ? null : link); setSearchQuery(""); setMobileMenuOpen(false); }}
+                    onClick={() => { setActiveFilter(activeFilter === link ? null : link); setSearchQuery(""); setPriceSort(null); setMobileMenuOpen(false); setTimeout(() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }), 350); }}
                   >
                     {link} {activeFilter === link ? "✓" : ""}
                   </li>
@@ -693,11 +732,27 @@ export default function Dashboard() {
           <p className="section-eyebrow">{sectionEyebrow}</p>
           <h2 className="section-title">{sectionTitle}</h2>
           <div className="section-divider" />
-          {activeFilter && (
-            <button className="filter-clear-btn" onClick={() => setActiveFilter(null)}>
-              ✕ Show all
-            </button>
-          )}
+          <div className="section-controls">
+            {activeFilter && (
+              <button className="filter-clear-btn" onClick={() => setActiveFilter(null)}>
+                ✕ Show all
+              </button>
+            )}
+            <div className="price-sort-btns">
+              <button
+                className={`price-sort-btn${priceSort === "asc" ? " price-sort-active" : ""}`}
+                onClick={() => setPriceSort(priceSort === "asc" ? null : "asc")}
+              >
+                Price ↑
+              </button>
+              <button
+                className={`price-sort-btn${priceSort === "desc" ? " price-sort-active" : ""}`}
+                onClick={() => setPriceSort(priceSort === "desc" ? null : "desc")}
+              >
+                Price ↓
+              </button>
+            </div>
+          </div>
         </div>
 
         {loadingProducts ? (

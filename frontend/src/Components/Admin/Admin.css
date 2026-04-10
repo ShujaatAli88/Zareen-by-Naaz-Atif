@@ -3,6 +3,19 @@
    Mobile-First Stylesheet
    ============================================================ */
 
+/* ── Stock Toggle ── */
+.admin-stock-toggle {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.admin-stock-btn {
+  flex: 1; padding: 9px 0; border-radius: 6px; font-size: 12px;
+  font-weight: 600; letter-spacing: 0.5px; cursor: pointer;
+  border: 1.5px solid #e5e7eb; background: #f9fafb; color: #6b7280;
+  transition: all 0.18s;
+}
+.admin-stock-btn--in  { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+.admin-stock-btn--out { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+
 :root {
   --maroon:      #8b1a1a;
   --maroon-dark: #6b1414;
@@ -742,3 +755,4 @@
     border-radius: 8px;
   }
 }
+

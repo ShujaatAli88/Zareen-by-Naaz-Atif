@@ -193,12 +193,13 @@ export default function ProductDetail() {
   };
 
   const handleAddToCart = () => {
+    if (outOfStock) { setError("This product is currently out of stock"); return; }
     if (!selectedSize) { setError("Please select a size first"); return; }
     setError("");
     addToCart({
       productId: product._id,
       productName: product.name,
-      productPrice: product.price,
+      productPrice: displayPriceStr,
       productImg: imgs[0] || "",
       size: selectedSize,
       quantity,
@@ -209,6 +210,7 @@ export default function ProductDetail() {
 
   const handleOrder = async (e) => {
     e.preventDefault();
+    if (outOfStock) { setError("This product is currently out of stock"); return; }
     if (!selectedSize) { setError("Please select a size to continue"); return; }
     setError(""); setPlacing(true);
     try {
@@ -219,7 +221,7 @@ export default function ProductDetail() {
           ...form,
           productId: product._id,
           productName: product.name,
-          productPrice: product.price,
+          productPrice: displayPriceStr,
           size: selectedSize,
           quantity,
           deliveryCharges: product.deliveryCharges || 200,
@@ -245,10 +247,14 @@ export default function ProductDetail() {
   const imgs = (product.imgs && product.imgs.length > 0)
     ? product.imgs
     : (product.img ? [product.img] : []);
-  const activeImg      = imgs[selectedImgIdx] || "https://via.placeholder.com/600x750?text=No+Image";
+  const activeImg       = imgs[selectedImgIdx] || "https://via.placeholder.com/600x750?text=No+Image";
   const deliveryCharges = product.deliveryCharges || 200;
-  const numericPrice   = parseInt(product.price.replace(/[^0-9]/g, ""), 10) || 0;
-  const total          = (numericPrice * quantity) + deliveryCharges;
+  const origPrice       = parseInt(String(product.price).replace(/[^0-9]/g, ""), 10) || 0;
+  const hasDiscount     = product.discount > 0;
+  const salePrice       = hasDiscount ? Math.round(origPrice * (1 - product.discount / 100)) : origPrice;
+  const displayPriceStr = `PKR ${salePrice.toLocaleString()}`;
+  const total           = (salePrice * quantity) + deliveryCharges;
+  const outOfStock      = product.inStock === false;
 
   /* ── Success screen ── */
   if (orderSuccess) {
@@ -294,7 +300,7 @@ export default function ProductDetail() {
       <FloatingHeader
         visible={showFloating}
         name={product.name}
-        price={product.price}
+        price={displayPriceStr}
         onBack={() => navigate(-1)}
         onCart={() => navigate("/cart")}
         cartCount={cartCount}
@@ -384,7 +390,10 @@ export default function ProductDetail() {
                 </motion.div>
               </AnimatePresence>
 
-              <span className="pd-badge">{product.badge}</span>
+              {hasDiscount
+                ? <span className="pd-badge pd-badge--sale">{product.discount}% OFF</span>
+                : <span className="pd-badge">{product.badge}</span>
+              }
               <div className="pd-image-corner" />
 
               {/* Dot indicators — mobile only */}
@@ -451,9 +460,26 @@ export default function ProductDetail() {
             <h1 className="pd-name" ref={nameRef}>{product.name}</h1>
 
             <div className="pd-price-block">
-              <span className="pd-price">{product.price}</span>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <span className="pd-price">{displayPriceStr}</span>
+                {hasDiscount && (
+                  <>
+                    <span className="pd-price-original">PKR {origPrice.toLocaleString()}</span>
+                    <span className="pd-off-badge">{product.discount}% OFF</span>
+                  </>
+                )}
+              </div>
               <span className="pd-price-tag">Incl. all taxes</span>
             </div>
+
+            {outOfStock && (
+              <div className="pd-oos-banner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                  <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                </svg>
+                This product is currently out of stock
+              </div>
+            )}
 
             {product.description && (
               <p className="pd-description">{product.description}</p>
@@ -505,7 +531,7 @@ export default function ProductDetail() {
                   <button className="pd-qty-btn" onClick={() => setQuantity((q) => q + 1)}>+</button>
                 </div>
                 <span className="pd-qty-total">
-                  Subtotal: PKR {(numericPrice * quantity).toLocaleString()}
+                  Subtotal: PKR {(salePrice * quantity).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -516,7 +542,7 @@ export default function ProductDetail() {
 
             {/* CTA buttons */}
             <div className="pd-action-btns">
-              <motion.button className="pd-add-to-cart-btn" onClick={handleAddToCart} whileTap={{ scale: 0.97 }}>
+              <motion.button className="pd-add-to-cart-btn" onClick={handleAddToCart} whileTap={{ scale: 0.97 }} disabled={outOfStock} style={outOfStock ? { opacity: 0.45, cursor: "not-allowed" } : {}}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
                   width="16" height="16">
@@ -528,8 +554,10 @@ export default function ProductDetail() {
               </motion.button>
               <motion.button
                 className="pd-order-now-btn"
-                onClick={() => document.querySelector(".pd-form")?.scrollIntoView({ behavior: "smooth" })}
-                whileTap={{ scale: 0.97 }}
+                onClick={() => !outOfStock && document.querySelector(".pd-form")?.scrollIntoView({ behavior: "smooth" })}
+                whileTap={outOfStock ? {} : { scale: 0.97 }}
+                disabled={outOfStock}
+                style={outOfStock ? { opacity: 0.45, cursor: "not-allowed" } : {}}
               >
                 ORDER NOW
               </motion.button>
@@ -572,7 +600,16 @@ export default function ProductDetail() {
               </div>
 
               <div className="pd-price-summary">
-                <div className="pd-price-row"><span>Product Price</span><span>{product.price}</span></div>
+                {hasDiscount && (
+                  <div className="pd-price-row">
+                    <span>Original Price</span>
+                    <span style={{ textDecoration: "line-through", color: "#999" }}>PKR {origPrice.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="pd-price-row">
+                  <span>{hasDiscount ? "Sale Price" : "Product Price"}</span>
+                  <span>{displayPriceStr}</span>
+                </div>
                 <div className="pd-price-row"><span>Quantity</span><span>× {quantity}</span></div>
                 <div className="pd-price-row"><span>Delivery Charges</span><span>PKR {deliveryCharges.toLocaleString()}</span></div>
                 <div className="pd-price-row total">
@@ -602,7 +639,7 @@ export default function ProductDetail() {
 
               {error && <p className="pd-error">{error}</p>}
 
-              <motion.button type="submit" className="pd-order-btn" disabled={placing} whileTap={{ scale: 0.98 }}>
+              <motion.button type="submit" className="pd-order-btn" disabled={placing || outOfStock} style={outOfStock ? { opacity: 0.45, cursor: "not-allowed" } : {}} whileTap={outOfStock ? {} : { scale: 0.98 }}>
                 {placing ? (
                   <span className="pd-btn-loading">
                     <span className="pd-btn-spinner" /> Placing Order...
@@ -636,16 +673,18 @@ export default function ProductDetail() {
       <div className="pd-sticky-bar">
         <div className="pd-sticky-info">
           <span className="pd-sticky-name">{product.name}</span>
-          <span className="pd-sticky-price">{product.price}</span>
+          <span className="pd-sticky-price">{displayPriceStr}</span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <motion.button className="pd-sticky-cart-btn" onClick={handleAddToCart} whileTap={{ scale: 0.93 }}>+ Cart</motion.button>
+          <motion.button className="pd-sticky-cart-btn" onClick={handleAddToCart} disabled={outOfStock} style={outOfStock ? { opacity: 0.45, cursor: "not-allowed" } : {}} whileTap={outOfStock ? {} : { scale: 0.93 }}>+ Cart</motion.button>
           <motion.button
             className="pd-sticky-btn"
-            onClick={() => document.querySelector(".pd-form")?.scrollIntoView({ behavior: "smooth" })}
-            whileTap={{ scale: 0.95 }}
+            onClick={() => !outOfStock && document.querySelector(".pd-form")?.scrollIntoView({ behavior: "smooth" })}
+            disabled={outOfStock}
+            style={outOfStock ? { opacity: 0.45, cursor: "not-allowed" } : {}}
+            whileTap={outOfStock ? {} : { scale: 0.95 }}
           >
-            Order Now
+            {outOfStock ? "Out of Stock" : "Order Now"}
           </motion.button>
         </div>
       </div>

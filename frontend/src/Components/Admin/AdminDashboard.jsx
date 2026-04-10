@@ -8,11 +8,19 @@ const BADGES = ["NEW IN", "EID COLLECTION", "READY TO WEAR", "FABRICS", "SALE"];
 const emptyForm = {
   name: "",
   price: "",
+  discount: "0",
+  inStock: true,
   badge: "NEW IN",
   description: "",
   deliveryCharges: "200",
   pieces: [], // [{pieceName, description}]
 };
+
+function parseNumericPrice(priceStr) {
+  if (!priceStr) return 0;
+  const n = parseFloat(String(priceStr).replace(/[^0-9.]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
 
 export default function AdminDashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState("products");
@@ -129,6 +137,8 @@ export default function AdminDashboard({ onLogout }) {
     setForm({
       name: product.name,
       price: product.price,
+      discount: String(product.discount ?? 0),
+      inStock: product.inStock !== false,
       badge: product.badge,
       description: product.description || "",
       deliveryCharges: String(product.deliveryCharges || 200),
@@ -156,6 +166,8 @@ export default function AdminDashboard({ onLogout }) {
       const fd = new FormData();
       fd.append("name", form.name);
       fd.append("price", form.price);
+      fd.append("discount", form.discount || "0");
+      fd.append("inStock", form.inStock === false ? "false" : "true");
       fd.append("badge", form.badge);
       fd.append("description", form.description);
       fd.append("deliveryCharges", form.deliveryCharges || "200");
@@ -185,9 +197,16 @@ export default function AdminDashboard({ onLogout }) {
       });
 
       if (res.ok) {
+        const saved = await res.json();
         showToast(modal === "edit" ? "Product updated!" : "Product added!");
         closeModal();
-        fetchProducts();
+        // Directly update local state from the response — no stale cache risk
+        if (modal === "edit") {
+          setProducts((prev) => prev.map((p) => p._id === saved._id ? saved : p));
+        } else {
+          setProducts((prev) => [saved, ...prev]);
+        }
+        fetchProducts(); // background sync
       } else {
         const err = await res.json();
         showToast(err.error || "Something went wrong");
@@ -291,8 +310,31 @@ export default function AdminDashboard({ onLogout }) {
                       </div>
                       <div className="admin-product-info">
                         <p className="admin-product-name">{p.name}</p>
-                        <p className="admin-product-price">{p.price}</p>
+                        {p.discount > 0 ? (
+                          <p className="admin-product-price">
+                            <span style={{ textDecoration: "line-through", color: "#999", marginRight: 6, fontSize: 12 }}>
+                              PKR {parseNumericPrice(p.price).toLocaleString()}
+                            </span>
+                            <strong style={{ color: "#16a34a" }}>
+                              PKR {Math.round(parseNumericPrice(p.price) * (1 - p.discount / 100)).toLocaleString()}
+                            </strong>
+                            <span style={{ marginLeft: 6, background: "#dc2626", color: "#fff", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>
+                              {p.discount}% OFF
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="admin-product-price">PKR {parseNumericPrice(p.price).toLocaleString()}</p>
+                        )}
                         <p className="admin-product-delivery">Delivery: PKR {p.deliveryCharges || 200}</p>
+                        <p style={{
+                          display: "inline-block", marginTop: 4,
+                          fontSize: 10, fontWeight: 700, letterSpacing: 1,
+                          padding: "2px 8px", borderRadius: 4,
+                          background: p.inStock !== false ? "#dcfce7" : "#fee2e2",
+                          color: p.inStock !== false ? "#16a34a" : "#dc2626",
+                        }}>
+                          {p.inStock !== false ? "IN STOCK" : "OUT OF STOCK"}
+                        </p>
                         {p.pieces && p.pieces.length > 0 && (
                           <p className="admin-product-desc">{p.pieces.length} piece description{p.pieces.length !== 1 ? "s" : ""}</p>
                         )}
@@ -392,14 +434,86 @@ export default function AdminDashboard({ onLogout }) {
 
               {/* Price */}
               <div className="admin-form-group">
-                <label className="admin-label">Price *</label>
+                <label className="admin-label">Actual Price (PKR) *</label>
                 <input
                   className="admin-input"
+                  type="number"
+                  min="0"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  placeholder="e.g. PKR 4,850"
+                  placeholder="e.g. 5000"
                   required
                 />
+              </div>
+
+              {/* Discount */}
+              <div className="admin-form-group">
+                <label className="admin-label">Discount % <span style={{ fontWeight: 400, fontSize: 11, color: "#888" }}>(0 = no discount)</span></label>
+                <input
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.discount}
+                  onChange={(e) => setForm({ ...form, discount: e.target.value })}
+                  placeholder="e.g. 15"
+                />
+                {(() => {
+                  const orig = parseNumericPrice(form.price);
+                  const disc = parseFloat(form.discount) || 0;
+                  if (orig > 0 && disc > 0) {
+                    const sale = Math.round(orig * (1 - disc / 100));
+                    return (
+                      <p style={{ marginTop: 6, fontSize: 13, color: "#16a34a" }}>
+                        Sale price: <strong>PKR {sale.toLocaleString()}</strong>
+                        <span style={{ color: "#888", marginLeft: 8, textDecoration: "line-through" }}>PKR {orig.toLocaleString()}</span>
+                        <span style={{ marginLeft: 8, background: "#dc2626", color: "#fff", borderRadius: 4, padding: "1px 6px", fontSize: 11 }}>{disc}% OFF</span>
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              {/* Stock Status */}
+              <div className="admin-form-group">
+                <label className="admin-label">Stock Status</label>
+                <div className="admin-stock-toggle">
+                  <button
+                    type="button"
+                    className={`admin-stock-btn${form.inStock !== false ? " admin-stock-btn--in" : ""}`}
+                    onClick={async () => {
+                      setForm((f) => ({ ...f, inStock: true }));
+                      if (editId) {
+                        await fetch(`${API}/api/products/${editId}/stock`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ inStock: true }),
+                        });
+                        fetchProducts();
+                      }
+                    }}
+                  >
+                    ✓ In Stock
+                  </button>
+                  <button
+                    type="button"
+                    className={`admin-stock-btn${form.inStock === false ? " admin-stock-btn--out" : ""}`}
+                    onClick={async () => {
+                      setForm((f) => ({ ...f, inStock: false }));
+                      if (editId) {
+                        await fetch(`${API}/api/products/${editId}/stock`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ inStock: false }),
+                        });
+                        fetchProducts();
+                      }
+                    }}
+                  >
+                    ✕ Out of Stock
+                  </button>
+                </div>
               </div>
 
               {/* Delivery Charges */}
