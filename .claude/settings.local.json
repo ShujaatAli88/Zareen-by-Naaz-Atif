@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(find /c/Users/hp/Desktop/clothing_brand -type d -not -path */node_modules/*)",
-      "Bash(find /c/Users/hp/Desktop/clothing_brand -name *.env* -o -name *.config.* -o -name server.* -o -name api.* -o -name database.*)"
+      "Bash(find /c/Users/hp/Desktop/clothing_brand -name *.env* -o -name *.config.* -o -name server.* -o -name api.* -o -name database.*)",
+      "WebFetch(domain:us.khaadi.com)"
     ]
   }
 }

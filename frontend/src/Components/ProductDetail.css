@@ -21,29 +21,28 @@
    ─────────────────────────────────────────────────────────────────── */
 .pd-page,
 .pd-loading-screen {
-  --maroon:      #6EE7C4;   /* emerald-light for price / highlights */
-  --maroon-dark: #2DD4A0;
-  --maroon-glow: rgba(45,212,160,0.18);
-  --gold:        #C8A96E;   /* pale gold — warmth */
-  --gold-light:  #E8D5A3;
-  --dark:        #E2E2E2;   /* text foreground — off-white, OLED-safe */
-  --cream:       #222228;   /* subtle surface */
-  --cream-dark:  #1A1A1F;   /* image / gallery bg */
-  --border:      rgba(45,212,160,0.14);
-  --border-soft: rgba(45,212,160,0.08);
-  --gray-400:    #9090A0;   /* muted text */
-  --gray-600:    #C4C4CC;   /* body text — readable on dark */
-  --white:       #121214;   /* page / panel surface — Soft Obsidian */
-  --ember:       #E05050;   /* urgency CTAs only */
+  --maroon:      #C8A96E;   /* gold — price / highlights */
+  --maroon-dark: #A88A4E;
+  --maroon-glow: rgba(200,169,110,0.15);
+  --gold:        #C8A96E;
+  --gold-light:  #DFC08A;
+  --dark:        #1A1818;   /* primary text */
+  --cream:       #F4F2EF;   /* subtle surface */
+  --cream-dark:  #FAF9F7;   /* image / gallery bg */
+  --border:      #E8E3DC;
+  --border-soft: #F0ECE6;
+  --gray-400:    #ABA7A3;
+  --gray-600:    #7A7673;
+  --white:       #FFFFFF;   /* page surface */
+  --ember:       #C8402A;
   --font-serif:  'Cormorant Garamond', Georgia, serif;
   --font-mono:   'Space Mono', monospace;
 
-  /* Ambient Occlusion shadow system — large spread, low opacity */
-  --shadow-lift1: 0 4px 20px rgba(0,0,0,0.32), 0 1px 4px rgba(0,0,0,0.18);
-  --shadow-lift2: 0 8px 40px rgba(0,0,0,0.40), 0 2px 10px rgba(0,0,0,0.24);
-  --shadow-lift3: 0 20px 64px rgba(0,0,0,0.48), 0 6px 20px rgba(0,0,0,0.30), 0 0 0 1px rgba(45,212,160,0.08);
-  --shadow-ember: 0 12px 36px rgba(224,80,80,0.35);
-  --shadow-rouge: 0 12px 32px rgba(45,212,160,0.28);
+  --shadow-lift1: 0 2px 8px rgba(26,24,24,0.07), 0 1px 2px rgba(26,24,24,0.04);
+  --shadow-lift2: 0 6px 24px rgba(26,24,24,0.09), 0 2px 8px rgba(26,24,24,0.05);
+  --shadow-lift3: 0 16px 48px rgba(26,24,24,0.12), 0 4px 16px rgba(26,24,24,0.07);
+  --shadow-ember: 0 8px 24px rgba(200,64,42,0.25);
+  --shadow-rouge: 0 8px 24px rgba(200,169,110,0.20);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -74,11 +73,10 @@ button { cursor: pointer; font-family: inherit; border: none; }
 }
 .pd-loading-spinner {
   width: 36px; height: 36px;
-  border: 2.5px solid rgba(124,58,237,0.20);
-  border-top-color: #7C3AED;
+  border: 2.5px solid rgba(200,169,110,0.25);
+  border-top-color: #C8A96E;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  box-shadow: 0 0 16px rgba(124,58,237,0.25);
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 

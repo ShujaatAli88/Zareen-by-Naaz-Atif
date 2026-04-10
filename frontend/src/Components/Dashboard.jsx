@@ -18,12 +18,6 @@ function effectivePrice(p) {
   return p.discount > 0 ? Math.round(base * (1 - p.discount / 100)) : base;
 }
 
-const FOOTER_COLS = [
-  { title: "SHOP", links: ["New In", "Eid Collection", "Ready to Wear", "Fabrics", "Sale"] },
-  { title: "HELP", links: ["Size Guide", "Track Order", "Returns", "FAQs", "Contact Us"] },
-  { title: "COMPANY", links: ["About Us", "Careers", "Press", "Stores", "Blog"] },
-];
-
 // ── Magnetic Button ─────────────────────────────────────────
 function MagneticBtn({ children, className, onClick, type = "button", style }) {
   const ref = useRef(null);
@@ -354,17 +348,20 @@ export default function Dashboard() {
           <span /><span /><span />
         </motion.button>
 
-        {/* Logo — absolute-centered on mobile, left-anchored on desktop
-            mix-blend-mode: screen softens the white box on dark navbar.
-            For a perfect transparent logo, swap the JPEG for a PNG/SVG with alpha. */}
+        {/* Logo */}
         <div className="logo">
           <motion.img
             src="/nazzAtif_logo.jpeg"
-            alt="ZAREEN by NaazAtif"
+            alt=""
             className="logo-img"
-            animate={{ height: scrolled ? "34px" : "50px" }}
+            aria-hidden="true"
+            animate={{ height: scrolled ? "30px" : "38px" }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           />
+          <div className="logo-wordmark">
+            <span className="logo-primary">ZAREEN</span>
+            <span className="logo-secondary">by NaazAtif</span>
+          </div>
         </div>
 
         {/* Desktop nav links — Signature Underline via Framer Motion layoutId */}
@@ -642,7 +639,7 @@ export default function Dashboard() {
       {/* ── Hero ── */}
       <section className="hero">
         <img
-          src="/background_image.jpeg"
+          src="/bg_naaz_atif.jpeg"
           alt="hero"
           className="hero-img"
         />
@@ -843,12 +840,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {FOOTER_COLS.map((col, i) => (
-            <div key={i} className="footer-col">
-              <h4 className="footer-col-title">{col.title}</h4>
-              {col.links.map((l, j) => <p key={j} className="footer-link">{l}</p>)}
-            </div>
-          ))}
         </div>
 
         <div className="footer-bottom">
