@@ -76,10 +76,12 @@ export default function AdminOrders() {
   const orderId   = (o) => `ORD-${String(o._id).slice(-6).toUpperCase()}`;
   const qty       = (o) => o.quantity ?? 1;
 
-  // Extract first product image URL from the populated productId field
+  // Get product image — prefers the snapshotted URL saved at order time,
+  // falls back to the populated productId object for older orders
   const productImg = (o) => {
+    if (o.productImageUrl) return o.productImageUrl;
     const p = o.productId;
-    if (!p) return null;
+    if (!p || typeof p !== "object") return null;
     if (p.isExternal && p.externalImg) return p.externalImg;
     if (p.imageIds && p.imageIds.length > 0) return `${API}/api/images/${p.imageIds[0]}`;
     if (p.imageId) return `${API}/api/images/${p.imageId}`;
@@ -239,7 +241,14 @@ export default function AdminOrders() {
                             <div className="ao-customer-name">{o.customerName}</div>
                             <div className="ao-customer-sub">{o.phone}</div>
                           </td>
-                          <td className="ao-product">{o.productName}</td>
+                          <td className="ao-product">
+                            <div className="ao-product-cell">
+                              {productImg(o) && (
+                                <img src={productImg(o)} alt="" className="ao-table-thumb" />
+                              )}
+                              <span>{o.productName}</span>
+                            </div>
+                          </td>
                           <td><span className="ao-size-badge">{o.size}</span></td>
                           <td className="ao-qty">{qty(o)}</td>
                           <td className="ao-total">{o.totalAmount}</td>

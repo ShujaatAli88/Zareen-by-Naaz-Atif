@@ -89,6 +89,7 @@ const orderSchema = new mongoose.Schema(
     productId:    { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
     productName:  { type: String, required: true },
     productPrice: { type: String, required: true },
+    productImageUrl: { type: String, default: "" }, // snapshot of first image at order time
     size:         { type: String, enum: ["XS", "S", "M", "L", "XL"], required: true },
     quantity:     { type: Number, default: 1, min: 1 },
     deliveryCharges: { type: Number, default: 200 },
@@ -474,10 +475,28 @@ app.post("/api/orders", async (req, res) => {
     const total = (numericPrice * qty) + dc;
     const totalAmount = `PKR ${total.toLocaleString()}`;
 
+    // Snapshot the product's first image URL so the admin always sees it,
+    // even if the product is edited or deleted later
+    let productImageUrl = "";
+    if (productId) {
+      try {
+        const prod = await Product.findById(productId);
+        if (prod) {
+          if (prod.isExternal && prod.externalImg) {
+            productImageUrl = prod.externalImg;
+          } else if (prod.imageIds && prod.imageIds.length > 0) {
+            productImageUrl = `${BASE_URL}/api/images/${prod.imageIds[0]}`;
+          } else if (prod.imageId) {
+            productImageUrl = `${BASE_URL}/api/images/${prod.imageId}`;
+          }
+        }
+      } catch { /* if product lookup fails, just leave imageUrl blank */ }
+    }
+
     const order = await Order.create({
       customerName, phone, email, deliveryAddress,
       productId: productId || null,
-      productName, productPrice, size,
+      productName, productPrice, productImageUrl, size,
       quantity: qty,
       deliveryCharges: dc,
       totalAmount,

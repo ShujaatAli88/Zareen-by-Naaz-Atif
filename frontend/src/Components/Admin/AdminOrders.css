@@ -297,7 +297,15 @@
   .ao-order-id      { font-weight: 700; color: #8b1a1a !important; font-size: 12px; white-space: nowrap; }
   .ao-customer-name { font-weight: 600; color: #1a0a0a; }
   .ao-customer-sub  { font-size: 11px; color: #999; margin-top: 2px; }
-  .ao-product       { color: #333; max-width: 160px; }
+  .ao-product       { color: #333; max-width: 200px; }
+  .ao-product-cell  { display: flex; align-items: center; gap: 10px; }
+  .ao-table-thumb   {
+    width: 44px; height: 58px;
+    object-fit: cover; flex-shrink: 0;
+    border-radius: 4px;
+    border: 1px solid #e8e8e8;
+    background: #f5f5f5;
+  }
   .ao-qty           { text-align: center; font-weight: 700; font-size: 14px; color: #1a0a0a; }
   .ao-total         { font-weight: 700; color: #1a0a0a; white-space: nowrap; }
   .ao-date          { font-size: 12px; color: #999; white-space: nowrap; }
