@@ -109,6 +109,8 @@ const AdminConfig = mongoose.model("AdminConfig", adminConfigSchema);
 let gfsBucket = null;
 
 // ── Multer: keep file in memory, we push it to GridFS ───────
+// Images are compressed on the frontend (≈300 KB each) before upload,
+// so a 5-image batch is well under Vercel's 4.5 MB body limit.
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (_req, file, cb) => {
@@ -116,9 +118,16 @@ const upload = multer({
     const valid =
       allowed.test(path.extname(file.originalname).toLowerCase()) &&
       allowed.test(file.mimetype);
-    cb(null, valid);
+    if (valid) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed (JPG, PNG, WEBP, GIF)"), false);
+    }
   },
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB per file (compressed images are ~300 KB)
+    files: 10,                  // max 10 files per request
+  },
 });
 
 // ── MongoDB connection cache (serverless-safe) ────────────────

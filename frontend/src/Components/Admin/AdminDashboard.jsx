@@ -22,6 +22,53 @@ function parseNumericPrice(priceStr) {
   return isNaN(n) ? 0 : n;
 }
 
+// ── Image compression ───────────────────────────────────────
+// Resizes & re-encodes as JPEG before upload.
+// Brings a 4 MB phone photo down to ~250–400 KB.
+// 5 compressed images ≈ 1.5 MB — well within Vercel's 4.5 MB body limit.
+function compressImage(file, maxPx = 1200, quality = 0.78) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve(file); // fallback: send original
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => resolve(file); // fallback
+      img.src = e.target.result;
+      img.onload = () => {
+        let { width, height } = img;
+        // Only downscale — never upscale
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) {
+            height = Math.round((height * maxPx) / width);
+            width = maxPx;
+          } else {
+            width = Math.round((width * maxPx) / height);
+            height = maxPx;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return resolve(file); // fallback if toBlob fails
+            const compressed = new File(
+              [blob],
+              file.name.replace(/\.[^.]+$/, ".jpg"),
+              { type: "image/jpeg", lastModified: Date.now() }
+            );
+            resolve(compressed);
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+    };
+  });
+}
+
 export default function AdminDashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState("products");
   const [products, setProducts] = useState([]);
@@ -37,6 +84,7 @@ export default function AdminDashboard({ onLogout }) {
   const [newImagePreviews, setNewImagePreviews] = useState([]); // local URLs
 
   const [saving, setSaving] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [toast, setToast] = useState("");
   const fileInputRef = useRef();
@@ -62,15 +110,21 @@ export default function AdminDashboard({ onLogout }) {
     setTimeout(() => setToast(""), 3000);
   };
 
-  // ── Add new image files ─────────────────────────────────────
-  const handleImageChange = (e) => {
+  // ── Add new image files (compress before storing) ──────────
+  const handleImageChange = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    const previews = files.map((f) => URL.createObjectURL(f));
-    setNewImageFiles((prev) => [...prev, ...files]);
-    setNewImagePreviews((prev) => [...prev, ...previews]);
-    // reset input so same file can be re-selected
-    fileInputRef.current.value = "";
+    fileInputRef.current.value = ""; // reset early so re-selection works
+    setCompressing(true);
+    try {
+      // Compress all images in parallel — each phone photo → ~300 KB
+      const compressed = await Promise.all(files.map((f) => compressImage(f)));
+      const previews = compressed.map((f) => URL.createObjectURL(f));
+      setNewImageFiles((prev) => [...prev, ...compressed]);
+      setNewImagePreviews((prev) => [...prev, ...previews]);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   // ── Remove a new (not yet uploaded) image ───────────────────
@@ -410,11 +464,13 @@ export default function AdminDashboard({ onLogout }) {
                 <button
                   type="button"
                   className="admin-img-add-btn"
-                  onClick={() => fileInputRef.current.click()}
+                  onClick={() => !compressing && fileInputRef.current.click()}
+                  disabled={compressing}
+                  style={compressing ? { opacity: 0.6, cursor: "not-allowed" } : {}}
                 >
-                  + Add Images
+                  {compressing ? "⏳ Compressing..." : "+ Add Images"}
                 </button>
-                <p className="admin-image-hint">JPG, PNG, WEBP — max 10MB each. Add multiple images.</p>
+                <p className="admin-image-hint">JPG, PNG, WEBP — up to 5 images. Large photos are auto-compressed.</p>
                 <input
                   ref={fileInputRef}
                   type="file"
