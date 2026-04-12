@@ -511,9 +511,40 @@ app.post("/api/orders", async (req, res) => {
 // ── GET all orders (admin) ───────────────────────────────────
 app.get("/api/orders", async (_req, res) => {
   try {
-    const orders = await Order.find()
-      .sort({ createdAt: -1 })
-      .populate("productId", "imageIds imageId isExternal externalImg");
+    // Use .lean() for plain JS objects — faster and easier to mutate
+    const orders = await Order.find().sort({ createdAt: -1 }).lean();
+
+    // Find orders that are missing a snapshotted image URL
+    const needsImg = orders.filter(o => !o.productImageUrl && o.productId);
+    if (needsImg.length > 0) {
+      // Fetch all needed products in ONE query
+      const uniqueIds = [...new Set(needsImg.map(o => String(o.productId)))];
+      const products  = await Product.find({ _id: { $in: uniqueIds } })
+        .select("imageIds imageId isExternal externalImg").lean();
+
+      // Build productId → imageUrl map
+      const imgMap = {};
+      for (const p of products) {
+        let url = "";
+        if (p.isExternal && p.externalImg)          url = p.externalImg;
+        else if (p.imageIds && p.imageIds.length > 0) url = `${BASE_URL}/api/images/${p.imageIds[0]}`;
+        else if (p.imageId)                          url = `${BASE_URL}/api/images/${p.imageId}`;
+        imgMap[String(p._id)] = url;
+      }
+
+      // Attach URL to each order in the response AND backfill DB in background
+      for (const o of orders) {
+        if (!o.productImageUrl && o.productId) {
+          const url = imgMap[String(o.productId)] || "";
+          o.productImageUrl = url;
+          if (url) {
+            // Fire-and-forget — don't block the response
+            Order.findByIdAndUpdate(o._id, { productImageUrl: url }).catch(() => {});
+          }
+        }
+      }
+    }
+
     res.json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });
