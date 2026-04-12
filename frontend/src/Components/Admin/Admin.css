@@ -112,6 +112,8 @@
   min-height: 100vh;
   background: var(--gray-100);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* ── Mobile Top Bar ── */
@@ -350,7 +352,7 @@
   padding: 11px 14px;
   border: 1.5px solid var(--gray-200);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px; /* 16px prevents iOS Safari auto-zoom on focus */
   color: var(--dark);
   background: #fff;
   outline: none;
@@ -377,6 +379,7 @@
   transition: background 0.2s;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .admin-btn-primary:hover:not(:disabled) { background: var(--maroon-dark); }
 .admin-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -390,6 +393,7 @@
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 .admin-btn-secondary:hover { border-color: var(--gray-400); color: var(--dark); }
 
@@ -403,6 +407,7 @@
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s;
+  touch-action: manipulation;
 }
 .admin-btn-delete-confirm:hover { background: var(--red-dark); }
 
@@ -501,10 +506,17 @@
 .admin-modal-footer {
   display: flex;
   gap: 10px;
-  justify-content: flex-end;
+  flex-direction: column-reverse; /* stack on mobile — primary action on top */
   padding: 16px 20px 20px;
   border-top: 1px solid var(--gray-200);
   margin-top: 8px;
+}
+.admin-modal-footer .admin-btn-primary,
+.admin-modal-footer .admin-btn-secondary,
+.admin-modal-footer .admin-btn-delete-confirm {
+  width: 100%;
+  font-size: 15px;
+  padding: 14px 20px;
 }
 
 /* ── Confirm modal ── */
@@ -747,7 +759,18 @@
   }
 
   .admin-modal-form  { padding: 0 24px; }
-  .admin-modal-footer { padding: 16px 24px 24px; }
+  .admin-modal-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    padding: 16px 24px 24px;
+  }
+  .admin-modal-footer .admin-btn-primary,
+  .admin-modal-footer .admin-btn-secondary,
+  .admin-modal-footer .admin-btn-delete-confirm {
+    width: auto;
+    font-size: 14px;
+    padding: 12px 20px;
+  }
   .admin-modal-header { padding: 20px 24px 0; }
 
   .admin-toast {

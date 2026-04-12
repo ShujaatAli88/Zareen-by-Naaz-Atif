@@ -22,33 +22,46 @@
 
 .ao-tab {
   flex: 1;
-  min-width: 100px;
+  min-width: 0;          /* let flex shrink to fill evenly */
   display: flex;
+  flex-direction: column; /* icon on top, label+count below */
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 13px 10px;
+  gap: 4px;
+  padding: 10px 4px;
   background: #fafafa;
   border: none;
   border-bottom: 3px solid transparent;
   cursor: pointer;
-  font-size: 12px;
   font-weight: 600;
   color: #888;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
   transition: background 0.2s, color 0.2s;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.ao-tab:hover:not(.ao-tab--active) {
-  background: #f5f5f5;
-  color: #333;
-}
-/* Active tab style is applied inline (accent colour per status) */
+.ao-tab:hover:not(.ao-tab--active) { background: #f5f5f5; color: #333; }
 .ao-tab--active { font-weight: 700; }
 
-.ao-tab-icon  { font-size: 14px; line-height: 1; }
-.ao-tab-label { font-size: 12px; }
+/* Big emoji, easy to distinguish */
+.ao-tab-icon { font-size: 20px; line-height: 1; }
+
+/* Label + count badge sit on the same row beneath the icon */
+.ao-tab-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+.ao-tab-label { font-size: 9px; letter-spacing: 0.3px; white-space: nowrap; }
+.ao-tab-count {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 20px;
+  min-width: 16px;
+  text-align: center;
+  transition: background 0.2s, color 0.2s;
+}
 
 .ao-tab-count {
   font-size: 10px;
@@ -216,6 +229,17 @@
    DESKTOP 900px+  — show full table, hide cards
    ============================================================ */
 @media (min-width: 900px) {
+  /* Restore horizontal tab layout on desktop */
+  .ao-tab {
+    flex-direction: row;
+    gap: 6px;
+    padding: 13px 10px;
+  }
+  .ao-tab-icon  { font-size: 15px; }
+  .ao-tab-meta  { display: contents; } /* dissolves wrapper — items join parent flex row */
+  .ao-tab-label { font-size: 12px; letter-spacing: 0.3px; }
+  .ao-tab-count { font-size: 10px; padding: 2px 7px; }
+
   .ao-cards         { display: none; }
   .ao-table-wrapper { display: block; overflow-x: auto; }
 

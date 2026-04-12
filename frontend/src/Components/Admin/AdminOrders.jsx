@@ -119,15 +119,15 @@ export default function AdminOrders() {
                   onClick={() => setActiveTab(key)}
                 >
                   <span className="ao-tab-icon">{m.icon}</span>
-                  <span className="ao-tab-label">{m.label}</span>
-                  <span
-                    className="ao-tab-count"
-                    style={isActive
-                      ? { background: m.accent, color: "#fff" }
-                      : { background: "#f0f0f0", color: "#666" }
-                    }
-                  >
-                    {count}
+                  <span className="ao-tab-meta">
+                    <span className="ao-tab-label">{m.label}</span>
+                    <span
+                      className="ao-tab-count"
+                      style={isActive
+                        ? { background: m.accent, color: "#fff" }
+                        : { background: "#e8e8e8", color: "#666" }
+                      }
+                    >{count}</span>
                   </span>
                 </button>
               );
