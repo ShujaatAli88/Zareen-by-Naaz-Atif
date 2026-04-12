@@ -14,9 +14,9 @@
   --tx-3:      #787470;
   --tx-4:      #AEAAA6;
 
-  --accent:    #7C4F65;
-  --accent-d:  #5D3549;
-  --accent-bg: rgba(124,79,101,0.07);
+  --accent:    #B07B94;
+  --accent-d:  #8A5F74;
+  --accent-bg: rgba(176,123,148,0.07);
 
   --ember:     #C8402A;
   --ember-bg:  rgba(200,64,42,0.07);
@@ -209,13 +209,13 @@
 /* ── Checkout Form ── */
 .cart-checkout-form { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 24px; }
 .cart-form-label {
-  font-size: 9px; font-weight: 700; color: var(--tx-4);
+  font-size: 9px; font-weight: 700; color: var(--tx-2);
   letter-spacing: 3px; text-transform: uppercase;
   margin-bottom: 16px; display: block;
 }
 .cart-form-group  { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .cart-form-group label {
-  font-size: 10px; font-weight: 600; color: var(--tx-3);
+  font-size: 10px; font-weight: 600; color: var(--tx-2);
   letter-spacing: 1px; text-transform: uppercase;
 }
 .cart-input {
