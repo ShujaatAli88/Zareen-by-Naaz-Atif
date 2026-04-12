@@ -106,7 +106,7 @@ const adminConfigSchema = new mongoose.Schema({
 const AdminConfig = mongoose.model("AdminConfig", adminConfigSchema);
 
 // ── GridFS bucket ─────────────────────────────────────────────
-let gfsBucket;
+let gfsBucket = null;
 
 // ── Multer: keep file in memory, we push it to GridFS ───────
 const upload = multer({
@@ -123,23 +123,63 @@ const upload = multer({
 
 // ── MongoDB connection cache (serverless-safe) ────────────────
 let isConnected = false;
+let connectingPromise = null; // prevent concurrent connect() calls
 
 async function connectDB() {
-  if (isConnected && mongoose.connection.readyState === 1) return;
+  // Already connected and healthy — return immediately
+  if (isConnected && mongoose.connection.readyState === 1 && gfsBucket) return;
+
+  // If a connection attempt is already in progress, await it instead of starting a new one
+  if (connectingPromise) return connectingPromise;
+
   if (!MONGO_URI) throw new Error("MONGO_URI environment variable is not set");
 
-  await mongoose.connect(MONGO_URI);
-  isConnected = true;
-  gfsBucket = new GridFSBucket(mongoose.connection.db, { bucketName: "uploads" });
+  connectingPromise = (async () => {
+    try {
+      await mongoose.connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 10000, // fail fast — don't hang for 30s
+        socketTimeoutMS: 45000,
+      });
 
-  // Seed admin password if not already in DB
-  const existing = await AdminConfig.findOne();
-  if (!existing) {
-    await AdminConfig.create({ password: "adminNaazAtif3321" });
-    console.log("🔑  Admin password seeded to database");
-  }
-  console.log("✅  Connected to MongoDB Atlas");
+      // Only mark connected AFTER gfsBucket is ready
+      gfsBucket = new GridFSBucket(mongoose.connection.db, { bucketName: "uploads" });
+      isConnected = true;
+
+      // Seed admin password once
+      const existing = await AdminConfig.findOne();
+      if (!existing) {
+        await AdminConfig.create({ password: "adminNaazAtif3321" });
+        console.log("🔑  Admin password seeded");
+      }
+      console.log("✅  Connected to MongoDB Atlas");
+    } finally {
+      connectingPromise = null; // reset so next call can retry if this one failed
+    }
+  })();
+
+  return connectingPromise;
 }
+
+// Reset state when mongoose loses connection so the next request re-connects
+mongoose.connection.on("disconnected", () => {
+  console.warn("⚠️  MongoDB disconnected — will reconnect on next request");
+  isConnected = false;
+  gfsBucket = null;
+});
+mongoose.connection.on("error", (err) => {
+  console.error("MongoDB connection error:", err.message);
+  isConnected = false;
+  gfsBucket = null;
+});
+
+// ── Health check (no DB required) ────────────────────────────
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    db: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    time: new Date().toISOString(),
+  });
+});
 
 // ── DB connection middleware ──────────────────────────────────
 app.use(async (req, res, next) => {
@@ -148,12 +188,13 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error("DB connection error:", err.message);
-    res.status(500).json({ error: "Database connection failed" });
+    res.status(503).json({ error: "Database unavailable — " + err.message });
   }
 });
 
 // ── Helper: save buffer → GridFS, returns the new file _id ──
 function saveToGridFS(buffer, filename, mimetype) {
+  if (!gfsBucket) throw new Error("Database not ready — GridFS bucket is not initialised");
   return new Promise((resolve, reject) => {
     const uploadStream = gfsBucket.openUploadStream(filename, {
       metadata: { mimetype },
@@ -162,6 +203,7 @@ function saveToGridFS(buffer, filename, mimetype) {
     readable.pipe(uploadStream);
     uploadStream.on("finish", () => resolve(uploadStream.id));
     uploadStream.on("error", reject);
+    readable.on("error", reject);
   });
 }
 
@@ -471,17 +513,16 @@ app.delete("/api/orders/:id", async (req, res) => {
   }
 });
 
-// ── Local dev: start server directly ─────────────────────────
+// ── Local dev: start server, then attempt DB connection ──────
+// Server ALWAYS listens — DB failures are handled per-request by the middleware.
 if (process.env.NODE_ENV !== "production") {
-  connectDB()
-    .then(() => {
-      app.listen(PORT, () =>
-        console.log(`🚀  Backend running at http://localhost:${PORT}\n`)
-      );
-    })
-    .catch((err) => {
-      console.error("❌  Startup failed:", err.message);
-    });
+  app.listen(PORT, () => {
+    console.log(`🚀  Backend running at http://localhost:${PORT}`);
+    // Attempt early connection so first request is fast, but don't block startup
+    connectDB().catch((err) =>
+      console.error("⚠️  Initial DB connect failed (will retry on first request):", err.message)
+    );
+  });
 }
 
 // ── Vercel serverless export ──────────────────────────────────

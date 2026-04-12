@@ -208,11 +208,16 @@ export default function AdminDashboard({ onLogout }) {
         }
         fetchProducts(); // background sync
       } else {
-        const err = await res.json();
-        showToast(err.error || "Something went wrong");
+        let errMsg = "Something went wrong";
+        try { errMsg = (await res.json()).error || errMsg; } catch { /* non-JSON body */ }
+        showToast(errMsg);
       }
-    } catch {
-      showToast("Server error. Is the backend running?");
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        showToast("Cannot reach backend — make sure the server is running on port 5000");
+      } else {
+        showToast("Unexpected error: " + (err.message || "unknown"));
+      }
     } finally {
       setSaving(false);
     }
