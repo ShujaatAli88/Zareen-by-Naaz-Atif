@@ -73,8 +73,18 @@ export default function AdminOrders() {
       hour: "2-digit", minute: "2-digit",
     });
 
-  const orderId = (o) => `ORD-${String(o._id).slice(-6).toUpperCase()}`;
-  const qty     = (o) => o.quantity ?? 1;
+  const orderId   = (o) => `ORD-${String(o._id).slice(-6).toUpperCase()}`;
+  const qty       = (o) => o.quantity ?? 1;
+
+  // Extract first product image URL from the populated productId field
+  const productImg = (o) => {
+    const p = o.productId;
+    if (!p) return null;
+    if (p.isExternal && p.externalImg) return p.externalImg;
+    if (p.imageIds && p.imageIds.length > 0) return `${API}/api/images/${p.imageIds[0]}`;
+    if (p.imageId) return `${API}/api/images/${p.imageId}`;
+    return null;
+  };
 
   // Group by status
   const grouped = STATUS_ORDER.reduce((acc, key) => {
@@ -145,10 +155,18 @@ export default function AdminOrders() {
               <>
                 {/* Mobile cards */}
                 <div className="ao-cards">
-                  {tabOrders.map((o) => (
+                  {tabOrders.map((o) => {
+                    const imgUrl = productImg(o);
+                    return (
                     <div key={o._id} className="ao-card" onClick={() => setSelectedOrder(o)}>
                       <div className="ao-card-top">
-                        <span className="ao-card-id">{orderId(o)}</span>
+                        {imgUrl && (
+                          <img src={imgUrl} alt={o.productName} className="ao-card-thumb" />
+                        )}
+                        <div className="ao-card-top-info">
+                          <span className="ao-card-id">{orderId(o)}</span>
+                          <span className="ao-card-product-name">{o.productName}</span>
+                        </div>
                         <span
                           className="ao-status-pill"
                           style={{ background: meta.bg, color: meta.accent }}
@@ -200,7 +218,7 @@ export default function AdminOrders() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
 
                 {/* Desktop table */}
@@ -263,6 +281,18 @@ export default function AdminOrders() {
               <button className="admin-modal-close" onClick={() => setSelectedOrder(null)}>×</button>
             </div>
             <div className="ao-detail-body">
+              {/* Product image preview */}
+              {productImg(selectedOrder) && (
+                <div className="ao-detail-product-img-wrap">
+                  <img
+                    src={productImg(selectedOrder)}
+                    alt={selectedOrder.productName}
+                    className="ao-detail-product-img"
+                  />
+                  <div className="ao-detail-product-label">{selectedOrder.productName}</div>
+                </div>
+              )}
+
               <div className="ao-detail-status">
                 <span
                   className="ao-status-pill"

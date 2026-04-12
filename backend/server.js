@@ -492,7 +492,9 @@ app.post("/api/orders", async (req, res) => {
 // ── GET all orders (admin) ───────────────────────────────────
 app.get("/api/orders", async (_req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find()
+      .sort({ createdAt: -1 })
+      .populate("productId", "imageIds imageId isExternal externalImg");
     res.json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });
