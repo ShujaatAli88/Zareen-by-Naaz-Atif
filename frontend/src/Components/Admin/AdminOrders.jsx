@@ -21,6 +21,27 @@ export default function AdminOrders() {
   const [updatingId,    setUpdatingId]    = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deletingId,    setDeletingId]    = useState(null);
+  // productId → first image URL, built from the products API (always uses correct REACT_APP_API_URL)
+  const [imgMap, setImgMap]              = useState({});
+
+  // Fetch products once to build a reliable productId → imgUrl map.
+  // We use REACT_APP_API_URL (frontend env var) so the URLs are always correct,
+  // regardless of what BASE_URL the backend has configured.
+  useEffect(() => {
+    fetch(`${API}/api/products`)
+      .then((r) => r.json())
+      .then((products) => {
+        if (!Array.isArray(products)) return;
+        const map = {};
+        for (const p of products) {
+          // p.imgs comes from the product virtual — first element is the primary image
+          const url = (p.imgs && p.imgs.length > 0) ? p.imgs[0] : (p.img || "");
+          if (url) map[String(p._id)] = url;  // always string key
+        }
+        setImgMap(map);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchOrders = () => {
     setLoading(true);
@@ -76,8 +97,14 @@ export default function AdminOrders() {
   const orderId   = (o) => `ORD-${String(o._id).slice(-6).toUpperCase()}`;
   const qty       = (o) => o.quantity ?? 1;
 
-  // Product image is always a plain URL string — resolved server-side for all orders
-  const productImg = (o) => o.productImageUrl || null;
+  // Resolve product image — checks imgMap (built from products API) first,
+  // then falls back to the snapshotted productImageUrl on the order document.
+  const productImg = (o) => {
+    const pid = o.productId && typeof o.productId === "object"
+      ? String(o.productId._id || o.productId)
+      : String(o.productId || "");
+    return imgMap[pid] || o.productImageUrl || null;
+  };
 
   // Group by status
   const grouped = STATUS_ORDER.reduce((acc, key) => {
