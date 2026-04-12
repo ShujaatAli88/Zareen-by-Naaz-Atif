@@ -23,6 +23,8 @@ export default function AdminOrders() {
   const [deletingId,    setDeletingId]    = useState(null);
   // productId → first image URL, built from the products API (always uses correct REACT_APP_API_URL)
   const [imgMap, setImgMap]              = useState({});
+  // Lightbox — null when closed, URL string when open
+  const [lightbox, setLightbox]          = useState(null);
 
   // Fetch products once to build a reliable productId → imgUrl map.
   // We use REACT_APP_API_URL (frontend env var) so the URLs are always correct,
@@ -181,7 +183,11 @@ export default function AdminOrders() {
                     <div key={o._id} className="ao-card" onClick={() => setSelectedOrder(o)}>
                       <div className="ao-card-top">
                         {imgUrl
-                          ? <img src={imgUrl} alt={o.productName} className="ao-card-thumb" />
+                          ? <img
+                              src={imgUrl} alt={o.productName} className="ao-card-thumb ao-card-thumb-clickable"
+                              onClick={(e) => { e.stopPropagation(); setLightbox({ url: imgUrl, name: o.productName }); }}
+                              title="Click to view full image"
+                            />
                           : <div className="ao-card-thumb ao-card-thumb-placeholder">📦</div>
                         }
                         <div className="ao-card-top-info">
@@ -263,7 +269,11 @@ export default function AdminOrders() {
                           <td className="ao-product">
                             <div className="ao-product-cell">
                               {productImg(o) && (
-                                <img src={productImg(o)} alt="" className="ao-table-thumb" />
+                                <img
+                                  src={productImg(o)} alt="" className="ao-table-thumb ao-table-thumb-clickable"
+                                  onClick={(e) => { e.stopPropagation(); setLightbox({ url: productImg(o), name: o.productName }); }}
+                                  title="Click to view full image"
+                                />
                               )}
                               <span>{o.productName}</span>
                             </div>
@@ -312,10 +322,21 @@ export default function AdminOrders() {
               {/* Product image preview — always shown */}
               <div className="ao-detail-product-img-wrap">
                 {productImg(selectedOrder)
-                  ? <img src={productImg(selectedOrder)} alt={selectedOrder.productName} className="ao-detail-product-img" />
+                  ? <img
+                      src={productImg(selectedOrder)}
+                      alt={selectedOrder.productName}
+                      className="ao-detail-product-img ao-detail-product-img-clickable"
+                      onClick={() => setLightbox({ url: productImg(selectedOrder), name: selectedOrder.productName })}
+                      title="Click to view full image"
+                    />
                   : <div className="ao-detail-product-img ao-detail-product-img-placeholder">📦</div>
                 }
-                <div className="ao-detail-product-label">{selectedOrder.productName}</div>
+                <div>
+                  <div className="ao-detail-product-label">{selectedOrder.productName}</div>
+                  {productImg(selectedOrder) && (
+                    <div className="ao-detail-view-hint">Tap image to enlarge</div>
+                  )}
+                </div>
               </div>
 
               <div className="ao-detail-status">
@@ -420,6 +441,17 @@ export default function AdminOrders() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lightbox ── */}
+      {lightbox && (
+        <div className="ao-lightbox" onClick={() => setLightbox(null)}>
+          <button className="ao-lightbox-close" onClick={() => setLightbox(null)}>×</button>
+          <div className="ao-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+            <img src={lightbox.url} alt={lightbox.name} className="ao-lightbox-img" />
+            <div className="ao-lightbox-name">{lightbox.name}</div>
           </div>
         </div>
       )}

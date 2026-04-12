@@ -319,4 +319,90 @@
   .ao-date          { font-size: 12px; color: #999; white-space: nowrap; }
 
   .ao-detail-body   { padding: 0 24px 24px; }
+
+  /* Clickable cursor on desktop thumbnails */
+  .ao-table-thumb-clickable { cursor: zoom-in; }
+  .ao-table-thumb-clickable:hover { opacity: 0.85; transform: scale(1.05); transition: all 0.15s; }
+}
+
+/* ============================================================
+   LIGHTBOX — full-screen image viewer
+   ============================================================ */
+.ao-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: aoLbIn 0.2s ease;
+}
+@keyframes aoLbIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.ao-lightbox-close {
+  position: fixed;
+  top: 16px; right: 16px;
+  width: 44px; height: 44px;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+  z-index: 10000;
+  -webkit-tap-highlight-color: transparent;
+}
+.ao-lightbox-close:hover { background: rgba(255,255,255,0.30); }
+
+.ao-lightbox-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
+  animation: aoLbPop 0.25s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes aoLbPop {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.ao-lightbox-img {
+  max-width: 88vw;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+
+.ao-lightbox-name {
+  color: rgba(255,255,255,0.85);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-align: center;
+  max-width: 80vw;
+}
+
+/* Clickable hint styles */
+.ao-card-thumb-clickable  { cursor: zoom-in; }
+.ao-detail-product-img-clickable { cursor: zoom-in; }
+.ao-card-thumb-clickable:hover,
+.ao-detail-product-img-clickable:hover {
+  opacity: 0.85;
+  transform: scale(1.04);
+  transition: all 0.15s;
+}
+.ao-detail-view-hint {
+  font-size: 10px; color: #999; margin-top: 4px;
+  letter-spacing: 0.5px;
 }
