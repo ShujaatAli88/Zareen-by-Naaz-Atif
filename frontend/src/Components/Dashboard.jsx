@@ -253,6 +253,8 @@ export default function Dashboard() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [activeFilter, setActiveFilter] = useState(null);
   const [priceSort, setPriceSort] = useState(null); // null | 'asc' | 'desc'
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 12;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -264,6 +266,17 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
   const { cartCount } = useCart();
+
+  // Developer Easter egg — visible only in browser DevTools console
+  useEffect(() => {
+    console.log(
+      "%c ♥ Zareen by NaazAtif %c\n%c Built with love by Shujaat \n%c github.com/shujaat ",
+      "background:#1A1818;color:#B07B94;font-size:18px;font-weight:bold;padding:8px 16px;border-radius:4px 4px 0 0;",
+      "",
+      "background:#B07B94;color:#fff;font-size:13px;padding:6px 16px;",
+      "background:#1A1818;color:#ABA7A3;font-size:11px;padding:4px 16px;border-radius:0 0 4px 4px;"
+    );
+  }, []);
 
   // Fetch products
   useEffect(() => {
@@ -312,6 +325,15 @@ export default function Dashboard() {
     }
     return list;
   })();
+
+  const totalPages  = Math.max(1, Math.ceil(displayProducts.length / PAGE_SIZE));
+  const pagedProducts = displayProducts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  // Reset to page 1 whenever filter or sort changes
+  useEffect(() => { setCurrentPage(1); }, [activeFilter, priceSort]);
 
   const searchResults = (() => {
     if (!searchQuery.trim()) return [];
@@ -788,10 +810,45 @@ export default function Dashboard() {
             )}
           </div>
         ) : (
-          <ProductGrid
-            products={displayProducts}
-            onCardClick={(id) => navigate(`/product/${id}`)}
-          />
+          <>
+            <ProductGrid
+              products={pagedProducts}
+              onCardClick={(id) => navigate(`/product/${id}`)}
+            />
+
+            {/* ── Pagination ── */}
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="pagination-btn pagination-prev"
+                  onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === 1}
+                >
+                  ← Prev
+                </button>
+
+                <div className="pagination-pages">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      className={`pagination-page${currentPage === page ? " active" : ""}`}
+                      onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  className="pagination-btn pagination-next"
+                  onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === totalPages}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
         )}
         </div>{/* /section-inner */}
       </section>
@@ -850,6 +907,7 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+        <p className="footer-dev">crafted with ♥ by Shujaat</p>
       </footer>
 
       <BottomNav
